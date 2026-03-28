@@ -1,4 +1,4 @@
-import { getDb } from "@/lib/db";
+import { getPositionsPageData } from "@/lib/data";
 
 export const dynamic = "force-dynamic";
 
@@ -9,25 +9,19 @@ export default async function PositionsPage({
 }) {
   const sp = await searchParams;
   const showClosed = sp.closed === "1";
-  const db = getDb();
-  const open = db
-    .prepare("SELECT * FROM positions WHERE status = 'OPEN' ORDER BY ticker")
-    .all() as Record<string, unknown>[];
-  const closed = showClosed
-    ? (db
-        .prepare(
-          `SELECT * FROM positions WHERE status = 'CLOSED' AND exit_date >= date('now', '-30 day') ORDER BY exit_date DESC`,
-        )
-        .all() as Record<string, unknown>[])
-    : [];
-  const snap = db
-    .prepare("SELECT nav, total_margin_used FROM portfolio_snapshots ORDER BY date DESC LIMIT 1")
-    .get() as { nav: number; total_margin_used: number } | undefined;
+  const { open, closed, snap, dbUnavailable } = getPositionsPageData(showClosed);
   const nav = snap?.nav ?? 1;
   const mu = snap?.nav ? ((snap.total_margin_used || 0) / snap.nav) * 100 : 0;
 
   return (
     <div className="space-y-8">
+      {dbUnavailable && (
+        <div className="rounded-lg border border-tape-amber/40 bg-tape-amber/10 px-4 py-3 text-sm text-tape-amber">
+          <strong>Database not available.</strong> On Vercel, set{" "}
+          <code className="font-mono text-xs">DATABASE_PATH</code> to a readable SQLite file, or run
+          the dashboard locally next to <code className="font-mono text-xs">storage/trading_bot.db</code>.
+        </div>
+      )}
       <div className="flex flex-wrap justify-between gap-4 items-start">
         <div>
           <h1 className="text-2xl font-semibold">Positions</h1>
@@ -89,7 +83,7 @@ export default async function PositionsPage({
                   </td>
                   <td
                     className={`py-2 pr-3 font-mono text-right ${
-                      up != null && up >= 0 ? "text-tape-green" : "text-tape-red"
+                     up != null && up >= 0 ? "text-tape-green" : "text-tape-red"
                     }`}
                   >
                     {up != null ? up.toLocaleString(undefined, { maximumFractionDigits: 0 }) : "—"}

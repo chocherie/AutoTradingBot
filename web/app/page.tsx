@@ -43,6 +43,14 @@ export default async function DashboardPage() {
 
   return (
     <div className="space-y-8">
+      {summary.dbUnavailable && (
+        <div className="rounded-lg border border-tape-amber/40 bg-tape-amber/10 px-4 py-3 text-sm text-tape-amber">
+          <strong>No SQLite file on this server.</strong> Vercel has no{" "}
+          <code className="font-mono text-xs">storage/trading_bot.db</code> from your Mac. Set env{" "}
+          <code className="font-mono text-xs">DATABASE_PATH</code> to a deployed database, or open the
+          dashboard locally after running the bot.
+        </div>
+      )}
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
         <p className="text-[var(--muted)] text-sm mt-1">
