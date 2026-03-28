@@ -1,0 +1,27 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: #0c0f14;
+  --surface: #141a22;
+  --border: #243044;
+  --text: #e8edf5;
+  --muted: #8b9cb3;
+}
+
+body {
+  @apply bg-[var(--bg)] text-[var(--text)] antialiased min-h-screen;
+}
+
+.card {
+  @apply rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-lg shadow-black/40;
+}
+
+.nav-link {
+  @apply text-[var(--muted)] hover:text-tape-amber transition-colors text-sm font-medium;
+}
+
+.nav-link-active {
+  @apply text-tape-amber;
+}

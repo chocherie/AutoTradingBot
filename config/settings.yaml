@@ -1,0 +1,50 @@
+# AutoTradingBot Configuration
+
+portfolio:
+  initial_capital: 1000000.0
+  currency: USD
+
+claude:
+  model: claude-opus-4-20250514
+  temperature: 0.3
+  max_tokens: 4096
+  max_retries: 3
+  pricing_input_per_mtok: 15.0
+  pricing_output_per_mtok: 75.0
+  enable_tools: true           # Trade journal / NAV snapshots / safe calculator (Anthropic tool_use)
+  tool_loop_max_rounds: 6
+  session_memory_prompt_lines: 40  # Max prior-lesson lines injected into user prompt
+
+risk:
+  max_position_pct: 20.0        # Max % of NAV per position
+  max_margin_utilization: 60.0  # Max % margin used
+  max_portfolio_heat: 10.0      # Max % NAV at risk (sum of stop distances)
+  circuit_breaker_warn: 15.0    # % drawdown to block new longs
+  circuit_breaker_halt: 20.0    # % drawdown to force close positions
+
+execution:
+  slippage_bps: 5.0             # Basis points of slippage per trade
+  commission_per_contract: 2.50
+  commission_per_share: 0.005
+
+schedule:
+  run_time: "17:00"             # ET, after US market close
+  timezone: "America/New_York"
+  trading_days: [1, 2, 3, 4, 5] # Mon-Fri
+
+data:
+  lookback_days: 60             # Historical data window
+  cache_ttl_hours: 24           # Cache expiry for economic data
+  max_news_headlines: 30        # Headlines taken from each Finnhub fetch
+  news_rolling_fetch_batches: 5 # Keep up to this many fetches (30 x 5 = 150 cap)
+  news_rolling_max_headlines: 150
+  news_headline_retention_days: 7
+  news_finnhub_cooldown_hours: 0 # Min hours between Finnhub calls (0 = every run)
+  news_prompt_headlines_max: 150 # How many headlines to include in the Claude prompt
+
+database:
+  path: "storage/trading_bot.db"
+
+logging:
+  level: INFO
+  log_dir: "storage/logs"

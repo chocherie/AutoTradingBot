@@ -1,0 +1,152 @@
+# AutoTradingBot Instrument Universe
+# All tickers use Yahoo Finance format
+
+equity_index_futures:
+  - ticker: "ES=F"
+    name: "S&P 500 E-mini"
+    exchange: CME
+    multiplier: 50
+    margin_pct: 5.0
+    currency: USD
+
+  - ticker: "NQ=F"
+    name: "NASDAQ 100 E-mini"
+    exchange: CME
+    multiplier: 20
+    margin_pct: 7.0
+    currency: USD
+
+  - ticker: "YM=F"
+    name: "Dow Jones E-mini"
+    exchange: CBOT
+    multiplier: 5
+    margin_pct: 5.0
+    currency: USD
+
+  - ticker: "NIY=F"
+    name: "Nikkei 225 (USD)"
+    exchange: CME
+    multiplier: 5
+    margin_pct: 6.0
+    currency: USD
+
+equity_index_etfs:
+  - ticker: "ISF.L"
+    name: "iShares Core FTSE 100"
+    currency: GBP
+    fx_ticker: "GBPUSD=X"
+
+  - ticker: "EXS1.DE"
+    name: "iShares Core DAX"
+    currency: EUR
+    fx_ticker: "EURUSD=X"
+
+  - ticker: "XIU.TO"
+    name: "iShares S&P/TSX 60"
+    currency: CAD
+    fx_ticker: "CAD=X"
+
+bond_futures:
+  - ticker: "ZN=F"
+    name: "US 10-Year Treasury"
+    exchange: CBOT
+    multiplier: 1000
+    margin_pct: 2.0
+    currency: USD
+
+  - ticker: "ZB=F"
+    name: "US 30-Year Treasury"
+    exchange: CBOT
+    multiplier: 1000
+    margin_pct: 3.0
+    currency: USD
+
+bond_etfs:
+  - ticker: "TLT"
+    name: "iShares 20+ Year Treasury"
+    currency: USD
+
+commodity_futures:
+  - ticker: "GC=F"
+    name: "Gold"
+    exchange: COMEX
+    multiplier: 100
+    margin_pct: 5.0
+    currency: USD
+    unit: "oz"
+
+  - ticker: "SI=F"
+    name: "Silver"
+    exchange: COMEX
+    multiplier: 5000
+    margin_pct: 8.0
+    currency: USD
+    unit: "oz"
+
+  - ticker: "CL=F"
+    name: "Crude Oil WTI"
+    exchange: NYMEX
+    multiplier: 1000
+    margin_pct: 7.0
+    currency: USD
+    unit: "bbl"
+
+  - ticker: "BZ=F"
+    name: "Brent Crude"
+    exchange: NYMEX
+    multiplier: 1000
+    margin_pct: 7.0
+    currency: USD
+    unit: "bbl"
+
+  - ticker: "NG=F"
+    name: "Natural Gas"
+    exchange: NYMEX
+    multiplier: 10000
+    margin_pct: 10.0
+    currency: USD
+    unit: "MMBtu"
+
+  - ticker: "HG=F"
+    name: "Copper"
+    exchange: COMEX
+    multiplier: 25000
+    margin_pct: 6.0
+    currency: USD
+    unit: "lbs"
+
+options_underlyings:
+  - ticker: "SPY"
+    name: "SPDR S&P 500 ETF"
+    currency: USD
+    multiplier: 100  # standard options contract
+
+  - ticker: "QQQ"
+    name: "Invesco QQQ Trust"
+    currency: USD
+    multiplier: 100
+
+  - ticker: "TLT"
+    name: "iShares 20+ Year Treasury"
+    currency: USD
+    multiplier: 100
+
+  - ticker: "GLD"
+    name: "SPDR Gold Shares"
+    currency: USD
+    multiplier: 100
+
+  - ticker: "USO"
+    name: "United States Oil Fund"
+    currency: USD
+    multiplier: 100
+
+fx_rates:
+  - ticker: "EURUSD=X"
+    name: "EUR/USD"
+  - ticker: "GBPUSD=X"
+    name: "GBP/USD"
+  - ticker: "JPY=X"
+    name: "USD/JPY"
+  - ticker: "CAD=X"
+    name: "USD/CAD"

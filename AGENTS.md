@@ -1,0 +1,70 @@
+# AutoTradingBot — Agent Orientation
+
+## What This Is
+A Claude Opus-powered paper trading bot managing a $1M portfolio across G7 exchange-traded instruments (futures, options, ETFs). Claude analyzes market data, news, economic indicators daily and makes all trading decisions. A Next.js dashboard displays live performance.
+
+## Directory Map
+```
+src/data/          → Data collection: market prices, economic indicators, news sentiment
+src/utils/         → Shared helpers: config, paths, retry, structured logging
+src/portfolio/     → `Portfolio` (SQLite), positions, margin, `validate_order`, instrument registry
+src/execution/     → `OrderIntent`, `PaperSimulator` (slippage + commissions)
+src/brain/         → Claude integration: prompt building, API calls, response parsing
+src/journal/       → Trade journal and performance metrics (Sharpe, drawdown, etc.)
+src/main.py        → Daily cycle: `python -m src.main` (`--date`, `--skip-claude`)
+config/            → instruments.yaml (universe), settings.yaml (parameters)
+web/               → Next.js 14 dashboard; set `DATABASE_PATH` to repo `storage/trading_bot.db` if not default
+storage/           → SQLite database + logs (created at runtime, gitignored)
+specs/             → System and module specifications (source of truth for design)
+docs/              → Architecture, quality scorecard, core beliefs
+tests/             → Unit and integration tests
+```
+
+## Environment
+- `FRED_API_KEY` — [FRED API key](https://fred.stlouisfed.org/docs/api/api_key.html)
+- `FINNHUB_API_KEY` — [Finnhub](https://finnhub.io/register)
+- Optional: `ANTHROPIC_API_KEY` (Phase 3+)
+
+## Key Commands
+```bash
+# Run daily trading cycle
+python -m src.main
+
+# Run with specific date (backtest mode)
+python -m src.main --date 2026-03-30
+
+# Start web dashboard (from repo root: ../storage/trading_bot.db)
+cd web && npm install && npm run dev
+
+# Run tests (PYTHONPATH=. if not installed editable)
+pytest tests/
+# or: PYTHONPATH=. python3 -m pytest tests/
+
+# Install dependencies
+pip install -e ".[dev]"
+cd web && npm install
+```
+
+## Data Flow
+```
+Collect Data → Check Stops/TPs → Build Prompt → Call Claude → Execute Orders → Record & Report
+```
+
+## Enforced Rules
+1. **Read spec before coding** — Check `specs/` for the relevant module spec before implementing
+2. **Update docs after changes** — Keep `docs/architecture.md` and specs synchronized
+3. **Artifacts to disk** — All analysis, decisions, and reports persist in the project tree
+
+## Workflows
+- `implement-and-verify.md` — 7-step dev cycle: spec → implement → test → review → fix → finalize
+- `daily-trading-cycle.md` — Runtime pipeline documentation
+
+## Critical Files
+- `src/brain/prompt_builder.py` — How data is presented to Claude determines trade quality
+- `src/brain/response_parser.py` — Must handle malformed JSON robustly
+- `src/portfolio/portfolio.py` — Source of truth for NAV, positions, P&L
+- `config/instruments.yaml` — Drives data collection, margin calc, and prompt content
+- `config/settings.yaml` — All tunable parameters in one place
+
+## Database
+SQLite at `storage/trading_bot.db`. Tables: `portfolio_snapshots`, `positions`, `trades`, `daily_analysis`, `data_cache`.
