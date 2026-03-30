@@ -13,6 +13,49 @@ function fmtMoney(n: number) {
   return n.toLocaleString(undefined, { style: "currency", currency: "USD", maximumFractionDigits: 0 });
 }
 
+/**
+ * Do not trust `portfolio_snapshots.daily_return` for the hero tile — older runs used a bad prior-NAV
+ * fallback (cash vs full NAV). Prefer NAV vs previous snapshot; single row → cumulative vs initial.
+ */
+function todayReturnDisplayPct(
+  historyAsc: { nav: number; daily_return: number | null }[],
+  snap: Record<string, unknown> | undefined,
+): number | null {
+  const n = historyAsc.length;
+  if (n >= 2) {
+    const prevNav = Number(historyAsc[n - 2]!.nav);
+    const lastNav = Number(historyAsc[n - 1]!.nav);
+    if (prevNav > 0 && Number.isFinite(lastNav)) {
+      return (lastNav / prevNav - 1) * 100;
+    }
+  }
+  if (snap?.cumulative_return != null) {
+    const c = Number(snap.cumulative_return);
+    if (Number.isFinite(c)) return c * 100;
+  }
+  if (snap?.daily_return != null) {
+    const d = Number(snap.daily_return);
+    if (Number.isFinite(d)) return d * 100;
+  }
+  return null;
+}
+
+/** Daily returns from consecutive NAVs (ignores possibly wrong `daily_return` in SQLite). */
+function historyWithImpliedDailyReturns<T extends { nav: number; daily_return: number | null }>(
+  historyAsc: T[],
+): T[] {
+  return historyAsc.map((row, i) => {
+    if (i === 0) {
+      return { ...row, daily_return: null };
+    }
+    const prevNav = Number(historyAsc[i - 1]!.nav);
+    const nav = Number(row.nav);
+    const implied =
+      prevNav > 0 && Number.isFinite(nav) ? nav / prevNav - 1 : null;
+    return { ...row, daily_return: implied };
+  });
+}
+
 export default async function DashboardPage() {
   const summary = await getPortfolioSummary();
   const history = (await getNavHistory(400)) as {
@@ -53,7 +96,8 @@ export default async function DashboardPage() {
   });
 
   const cumRet = perf.cumulativeReturn != null ? perf.cumulativeReturn * 100 : null;
-  const todayRet = snap?.daily_return != null ? Number(snap.daily_return) * 100 : null;
+  const todayRet = todayReturnDisplayPct(history, snap);
+  const historyForBars = historyWithImpliedDailyReturns(history);
 
   return (
     <div className="space-y-8">
@@ -110,7 +154,7 @@ export default async function DashboardPage() {
         </div>
         <div className="card p-5">
           <h2 className="text-sm font-medium text-[var(--muted)] mb-4">Daily returns</h2>
-          <DailyReturnsBar data={history} />
+          <DailyReturnsBar data={historyForBars} />
         </div>
         <div className="card p-5">
           <h2 className="text-sm font-medium text-[var(--muted)] mb-4">
