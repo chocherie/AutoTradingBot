@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Dict, List, Optional, Set, Tuple
 
 from src.execution.order import OrderIntent
+from src.portfolio.hold_rules import min_hold_exit_blocked
 from src.portfolio.instrument_registry import InstrumentMeta, build_registry, resolve_fx_to_usd
 from src.portfolio.margin import margin_required_usd
 from src.portfolio.portfolio import Portfolio
@@ -80,6 +81,7 @@ def validate_order(
     portfolio: Portfolio,
     prices: Dict[str, float],
     *,
+    as_of: Optional[str] = None,
     registry: Optional[Dict[str, InstrumentMeta]] = None,
     settings: Optional[dict] = None,
 ) -> Tuple[bool, str]:
@@ -105,8 +107,13 @@ def validate_order(
         return False, "NAV is non-positive"
 
     if order.action in ("SELL", "COVER"):
-        if not portfolio.find_open_position(order.ticker, long_side=(order.action == "SELL")):
+        op = portfolio.find_open_position(order.ticker, long_side=(order.action == "SELL"))
+        if not op:
             return False, f"No matching open position for {order.action} {order.ticker}"
+        if as_of is not None:
+            blocked = min_hold_exit_blocked(op.entry_date, as_of, settings)
+            if blocked:
+                return False, blocked
         return True, ""
 
     if order.action == "BUY":
@@ -115,6 +122,10 @@ def validate_order(
 
     if order.stop_loss_pct <= 0 or order.take_profit_pct <= 0:
         return False, "stop_loss_pct and take_profit_pct must be positive"
+
+    opts_on = bool(settings.get("trading", {}).get("options_enabled", True))
+    if order.option_details and not opts_on:
+        return False, "Options trading is disabled (trading.options_enabled: false in settings.yaml)"
 
     if order.option_details:
         if order.action != "BUY":

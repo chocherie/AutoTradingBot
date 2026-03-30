@@ -9,7 +9,7 @@ from typing import Any, Dict, Optional
 
 from dotenv import load_dotenv
 
-from src.brain.claude_client import ClaudeUsage, call_claude, estimate_cost_usd
+from src.brain.claude_client import ClaudeUsage, call_claude, estimate_cost_usd, system_prompt_for_settings
 from src.brain.claude_tools import ClaudeToolContext
 from src.brain.prompt_builder import build_user_prompt
 from src.brain.response_parser import REPAIR_SUFFIX, ClaudeDecision, orders_to_intents, parse_claude_response
@@ -49,9 +49,11 @@ def _safe_news() -> Dict[str, Any]:
         return {"headlines": [], "aggregate_sentiment": {}, "error": str(e)}
 
 
-def _safe_market() -> Dict[str, Any]:
+def _safe_market(settings: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    s = settings or load_settings()
+    options_on = bool(s.get("trading", {}).get("options_enabled", True))
     try:
-        return fetch_market_snapshot(options_chains=True)
+        return fetch_market_snapshot(options_chains=options_on)
     except Exception as e:
         logger.error("market_fetch_failed", extra={"error": str(e)})
         return {"tickers": {}, "error": str(e)}
@@ -108,7 +110,7 @@ def run_daily(as_of: str, *, skip_claude: bool = False) -> None:
     portfolio.load_state()
     sim = PaperSimulator(settings=settings)
 
-    market = _safe_market()
+    market = _safe_market(settings)
     prices = last_close_prices(market)
     if not prices:
         logger.error("no_market_prices_aborting")
@@ -119,15 +121,21 @@ def run_daily(as_of: str, *, skip_claude: bool = False) -> None:
     triggered = portfolio.check_stop_loss_take_profit(prices)
     for pos, reason, exit_px in list(triggered):
         if pos.id:
-            portfolio.close_position(
-                pos.id,
-                exit_px,
-                as_of,
-                rationale="system",
-                exit_reason=reason,
-                commission=0.0,
-                slippage_bps=0.0,
-            )
+            try:
+                portfolio.close_position(
+                    pos.id,
+                    exit_px,
+                    as_of,
+                    rationale="system",
+                    exit_reason=reason,
+                    commission=0.0,
+                    slippage_bps=0.0,
+                )
+            except ValueError as e:
+                logger.warning(
+                    "close_rejected",
+                    extra={"ticker": pos.ticker, "exit_reason": reason, "detail": str(e)},
+                )
     if triggered:
         portfolio.load_state()
 
@@ -172,7 +180,12 @@ def run_daily(as_of: str, *, skip_claude: bool = False) -> None:
     else:
         try:
             tool_ctx = ClaudeToolContext(portfolio=portfolio)
-            raw, usage = call_claude(user_prompt, settings=settings, tool_context=tool_ctx)
+            raw, usage = call_claude(
+                user_prompt,
+                settings=settings,
+                tool_context=tool_ctx,
+                system_prompt=system_prompt_for_settings(settings),
+            )
             raw_final = raw
             usage_tot = usage
             dec, err = parse_claude_response(raw)
@@ -182,6 +195,7 @@ def run_daily(as_of: str, *, skip_claude: bool = False) -> None:
                     settings=settings,
                     tool_context=tool_ctx,
                     disable_tools=True,
+                    system_prompt=system_prompt_for_settings(settings),
                 )
                 raw_final = raw2
                 usage_tot = ClaudeUsage(
@@ -269,15 +283,31 @@ def run_daily(as_of: str, *, skip_claude: bool = False) -> None:
 
 
 def main() -> None:
+    load_dotenv()
     parser = argparse.ArgumentParser(description="AutoTradingBot daily cycle")
-    parser.add_argument("--date", type=str, default=None, help="Trading date YYYY-MM-DD (UTC)")
+    parser.add_argument(
+        "--date",
+        type=str,
+        default=None,
+        help="Session calendar date YYYY-MM-DD (backtest); live default = today in schedule.timezone",
+    )
     parser.add_argument(
         "--skip-claude",
         action="store_true",
         help="Collect data and update snapshot without calling Anthropic",
     )
     args = parser.parse_args()
-    as_of = args.date or datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    if args.date:
+        as_of = args.date
+    else:
+        s = load_settings()
+        tz_name = s.get("schedule", {}).get("timezone", "America/New_York")
+        try:
+            from zoneinfo import ZoneInfo
+
+            as_of = datetime.now(ZoneInfo(tz_name)).strftime("%Y-%m-%d")
+        except Exception:
+            as_of = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     run_daily(as_of, skip_claude=args.skip_claude)
 
 

@@ -19,6 +19,7 @@ Think of one daily cycle as a **conveyor belt**:
 2. **Stops and take-profits** — if a position hits its stop or target, the system **closes it first**, before any new ideas. This is automatic; Claude is not consulted for those exits.
 3. **Severe drawdown (“circuit halt”)** — if the portfolio has fallen **very** far from its peak (see `circuit_breaker_halt` in `config/settings.yaml`), the system starts **force-closing** the largest positions to bring risk down. Again: automatic safety rail.
 4. **Build the briefing** — portfolio snapshot, market stats (trend and volatility-style fields), economic indicators, and news sentiment go into the prompt Claude sees.
+   **Operator note:** the same conveyor-belt story (steps **1–6** above) is repeated at the very top of that user message as `## DAILY PIPELINE`, built in `src/brain/prompt_builder.py`, so the model always sees what already ran and that `positions_to_close` executes before new `orders`.
 5. **Claude responds** — one JSON object: regime, macro summary, `orders`, `positions_to_close`, and risk notes.
 6. **`positions_to_close` runs first** — for each listed ticker, the simulator tries to **flatten** that exposure (sell longs / cover shorts) with the rationale `claude_positions_to_close`.
 7. **`orders` run next** — each `BUY`, `SELL`, `SHORT`, or `COVER` is checked against limits and the **actual** open positions, then **paper-filled** with slippage and commissions if allowed.
@@ -95,7 +96,7 @@ Same economic outcome as closing, but expressed as an **order** with size and ra
 
 - **Looser or tighter drawdown rules** — edit `circuit_breaker_warn` and `circuit_breaker_halt` in `config/settings.yaml` *knowing you are changing survival vs aggression*.
 - **When the job runs** — your Mac’s **LaunchAgent** time is local clock time; `settings.yaml` has a documented **ET after-close** *preference* for the product design, but your machine scheduler may differ—align them on purpose.
-- **Deeper behavior** — `src/brain/claude_client.py` (`SYSTEM_PROMPT`) and `src/brain/prompt_builder.py` (what data Claude sees) are the text-level “constitution” of the manager.
+- **Deeper behavior** — `src/brain/claude_client.py` (`SYSTEM_PROMPT`) and `src/brain/prompt_builder.py` (user message: **DAILY PIPELINE** preamble + portfolio, market, econ, news, optional prior learnings) are the text-level “constitution” of the manager.
 
 ---
 

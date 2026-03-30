@@ -10,9 +10,8 @@
 
   <key>ProgramArguments</key>
   <array>
-    <string>/Users/xiuzhou/Claude_C/AutoTradingBot/.venv/bin/python3</string>
-    <string>-m</string>
-    <string>src.main</string>
+    <string>/bin/bash</string>
+    <string>/Users/xiuzhou/Claude_C/AutoTradingBot/scripts/run_daily_launchd.sh</string>
   </array>
 
   <key>EnvironmentVariables</key>
@@ -66,8 +65,8 @@
   </array>
 
   <key>StandardOutPath</key>
-  <string>/Users/xiuzhou/Claude_C/AutoTradingBot/storage/launchd_daily.out.log</string>
+  <string>/tmp/com.autotradingbot.daily.out.log</string>
   <key>StandardErrorPath</key>
-  <string>/Users/xiuzhou/Claude_C/AutoTradingBot/storage/launchd_daily.err.log</string>
+  <string>/tmp/com.autotradingbot.daily.err.log</string>
 </dict>
 </plist>

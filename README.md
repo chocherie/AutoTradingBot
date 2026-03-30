@@ -105,15 +105,41 @@ export DATABASE_PATH=/absolute/path/to/AutoTradingBot/storage/trading_bot.db
 Example LaunchAgent plist (weekdays, 9:30 PM **local** — edit `Hour` / `Minute` to taste):
 
 - [scripts/launchd/com.autotradingbot.daily.plist](scripts/launchd/com.autotradingbot.daily.plist)
+- [scripts/run_daily_launchd.sh](scripts/run_daily_launchd.sh) — **`source`s repo `.env`** then runs `python3 -m src.main` (API keys + `DASHBOARD_DB_SYNC_*` without putting secrets in the plist)
+
+Edit the plist: replace `/Users/xiuzhou/Claude_C/AutoTradingBot` with your machine’s repo path if different.
 
 Install flow (once):
 
 ```bash
+chmod +x scripts/run_daily_launchd.sh
 cp scripts/launchd/com.autotradingbot.daily.plist ~/Library/LaunchAgents/
 launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.autotradingbot.daily.plist
 ```
 
-The Mac must be **awake** at the scheduled time. See comments in the plist and [AGENTS.md](AGENTS.md) for paths and env. To push the DB to Vercel after each run, add `DASHBOARD_DB_SYNC_URL` and `DASHBOARD_DB_SYNC_SECRET` (and your API keys) under `EnvironmentVariables` in the plist—or run via a small shell wrapper that `source`s `.env`.
+**Reload after changing the plist or wrapper:**
+
+```bash
+launchctl bootout gui/$(id -u)/com.autotradingbot.daily 2>/dev/null || true
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.autotradingbot.daily.plist
+```
+
+**One-off test (no LaunchAgent):**
+
+```bash
+./scripts/run_daily_launchd.sh
+```
+
+The Mac must be **awake** at the scheduled time. LaunchAgent logs (always writable): `/tmp/com.autotradingbot.daily.out.log` and `/tmp/com.autotradingbot.daily.err.log`.
+
+If **`launchctl bootstrap` fails with** `Bootstrap failed: 5: Input/output error`, the job may already be loaded or the plist paths were wrong. Run:
+
+```bash
+launchctl bootout gui/$(id -u)/com.autotradingbot.daily 2>/dev/null || true
+mkdir -p /Users/xiuzhou/Claude_C/AutoTradingBot/storage
+cp scripts/launchd/com.autotradingbot.daily.plist ~/Library/LaunchAgents/
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.autotradingbot.daily.plist
+```
 
 ---
 

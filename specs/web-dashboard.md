@@ -28,10 +28,9 @@ Next.js web app reading from the shared SQLite database. Displays live portfolio
 - **Closed positions**: toggle to show recently closed (last 30 days)
 
 ### 3. Trade Journal (`/trades`)
-- **Table**: date, ticker, action (BUY/SELL/SHORT/COVER), qty, price, realized P&L, confidence badge
-- **Expandable rows**: click to reveal Claude's rationale and signal source
-- **Filters**: date range picker, ticker search, action type, confidence level
-- **Pagination**: 20 trades per page
+- **Table**: one row per **position** (open + closed): ticker, direction, status, qty, entry date/price/notional, exit date/price/notional (blank while open), P&L (realized when closed, unrealized when open)
+- **Notionals**: `entry_notional_usd` / `exit_notional_usd` from SQLite (populated on open/close; legacy rows fallback to `|qty × price|`)
+- **Pagination**: 20 positions per page; optional `ticker` search via query string
 
 ### 4. Performance (`/performance`)
 - **Metrics grid**: Sharpe, Sortino, Calmar, win rate, profit factor, avg win/loss ratio

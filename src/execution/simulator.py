@@ -53,7 +53,12 @@ class PaperSimulator:
         """Validate, fill, persist. Returns (ok, message, affected_position_ids)."""
         registry = registry or build_registry()
         ok, reason = risk.validate_order(
-            order, portfolio, prices, registry=registry, settings=self.settings
+            order,
+            portfolio,
+            prices,
+            as_of=trade_date,
+            registry=registry,
+            settings=self.settings,
         )
         if not ok:
             return False, reason, []
@@ -67,15 +72,18 @@ class PaperSimulator:
             ref = float(prices[order.ticker])
             exit_px = self._fill_price(ref, order.action)
             comm = self._commission(p.instrument_type, p.quantity)
-            portfolio.close_position(
-                p.id,
-                exit_px,
-                trade_date,
-                rationale=order.rationale,
-                exit_reason=order.signal_source or "CLOSE",
-                commission=comm,
-                slippage_bps=self.slippage_bps,
-            )
+            try:
+                portfolio.close_position(
+                    p.id,
+                    exit_px,
+                    trade_date,
+                    rationale=order.rationale,
+                    exit_reason=order.signal_source or "CLOSE",
+                    commission=comm,
+                    slippage_bps=self.slippage_bps,
+                )
+            except ValueError as e:
+                return False, str(e), []
             return True, "", [p.id]
 
         meta = registry[order.ticker]

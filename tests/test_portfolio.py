@@ -60,6 +60,82 @@ def test_open_future_update_stop(tmp_db):
     assert port.find_open_position("ES=F") is None
 
 
+def test_min_hold_same_session_day_blocks_close(tmp_db):
+    port = Portfolio()
+    port.load_state()
+    prices = {"ES=F": 5000.0}
+    sim = PaperSimulator()
+    ok, msg, ids = sim.execute_intent(
+        port,
+        OrderIntent(
+            ticker="ES=F",
+            action="BUY",
+            size_pct_nav=2.0,
+            stop_loss_pct=2.0,
+            take_profit_pct=4.0,
+            rationale="open",
+            signal_source="test",
+        ),
+        prices,
+        trade_date="2026-04-01",
+    )
+    assert ok, msg
+    op = port.find_open_position("ES=F", long_side=True)
+    assert op is not None and op.id is not None
+    with pytest.raises(ValueError, match="Min hold"):
+        port.close_position(
+            op.id,
+            4900.0,
+            "2026-04-01",
+            exit_reason="test",
+        )
+
+
+def test_etf_round_trip_cash_not_destroyed(tmp_db):
+    """Long ETF open debits full notional; close must credit proceeds (not P&L only)."""
+    port = Portfolio()
+    port.load_state()
+    c0 = port.get_cash()
+    sim = PaperSimulator()
+    prices = {"GLD": 200.0}
+    ok, msg, _ = sim.execute_intent(
+        port,
+        OrderIntent(
+            ticker="GLD",
+            action="BUY",
+            size_pct_nav=1.0,
+            stop_loss_pct=5.0,
+            take_profit_pct=10.0,
+            rationale="open",
+            signal_source="test",
+        ),
+        prices,
+        trade_date="2026-03-28",
+    )
+    assert ok, msg
+    assert port.find_open_position("GLD", long_side=True) is not None
+
+    ok2, msg2, _ = sim.execute_intent(
+        port,
+        OrderIntent(
+            ticker="GLD",
+            action="SELL",
+            size_pct_nav=1.0,
+            stop_loss_pct=1.0,
+            take_profit_pct=2.0,
+            rationale="close",
+            signal_source="test",
+        ),
+        prices,
+        trade_date="2026-03-29",
+    )
+    assert ok2, msg2
+    assert port.find_open_position("GLD", long_side=True) is None
+    c1 = port.get_cash()
+    assert c1 > c0 * 0.99, f"cash impaired vs start: {c0} -> {c1}"
+    assert c1 <= c0 + 500.0
+
+
 def test_reject_oversize(monkeypatch, tmp_path):
     db = tmp_path / "u.db"
     monkeypatch.setattr(portfolio_mod, "_db_path", lambda: db)

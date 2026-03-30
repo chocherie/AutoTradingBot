@@ -25,6 +25,11 @@ For options:
 3. **Stop/TP Check**: Before Claude runs, check all positions against stops and take-profits
 4. **Close**: Either Claude requests close, or stop/TP triggers → realized P&L calculated, status → CLOSED
 
+## Cash settlement on close
+- **Futures**: Opening debits opening commission only; **`_cash`** on close changes by full **realized** MTM (`(exit-entry) × qty × multiplier`, net of exit commission).
+- **ETFs / spot**: Opening debits **full notional** (long) or credits **short-sale proceeds** (short). Closing **long** credits **`exit × qty × fx − exit commission`** (sale proceeds). Closing **short** debits **`exit × qty × fx + exit commission`** (cover + fee).
+- **Options**: Same cash pattern as notional: long pays premium on open / receives on close; short receives premium on open / pays on close. **`realized_pnl`** stored on the row remains economic P&L net of **exit** commission (opening commission was already applied on open).
+
 ## Margin Calculation
 ```
 For futures:

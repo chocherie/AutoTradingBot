@@ -7,6 +7,9 @@ Claude Opus is the sole decision-maker. The system presents structured market da
 
 Optional **Anthropic tool_use** tools (see `src/brain/claude_tools.py`): read recent **`trades`**, recent **`portfolio_snapshots`**, and **`safe_calculator`** for numeric expressions. Controlled by `claude.enable_tools` and `claude.tool_loop_max_rounds` in `config/settings.yaml`. JSON repair retries run **without** tools to reduce failure modes.
 
+## Trading feature flags (`config/settings.yaml`)
+- **`trading.options_enabled`** (default `true` if omitted): when `false`, the system prompt omits option instructions, **`fetch_market_snapshot`** skips options chains, and **`validate_order`** rejects any intent with `option_details` set.
+
 ## Model Configuration
 - **Model**: `claude-opus-4-20250514`
 - **Temperature**: 0.3 (consistent but allows variation)
@@ -75,7 +78,10 @@ IMPORTANT:
 - Always explain your reasoning in the rationale field
 ```
 
-## User Prompt Structure (4 sections, ~4000 tokens)
+## User Prompt Structure (preamble + data sections, ~4000 tokens)
+
+### Section 0: Daily pipeline (always first)
+Plain-language steps **1–6** matching [docs/user-guide-trading-decisions.md](../docs/user-guide-trading-decisions.md) (“What happens each day”): prices refreshed, stops/TPs and optional circuit halt already applied, this briefing built, expected JSON shape, and **`positions_to_close` before `orders`** after the model replies. Implemented as `## DAILY PIPELINE …` in `build_user_prompt()` (`src/brain/prompt_builder.py`).
 
 ### Section 1: Portfolio State
 ```

@@ -1,8 +1,13 @@
 # AutoTradingBot Configuration
 
+trading:
+  options_enabled: false        # When false: no option_details orders, no options chain in market data, prompt excludes options
+
 portfolio:
   initial_capital: 1000000.0
   currency: USD
+  # Session-calendar days before any exit (stops, Claude, circuit). Uses dates aligned with schedule.timezone for live runs.
+  min_hold_calendar_days: 1
 
 claude:
   model: claude-opus-4-20250514

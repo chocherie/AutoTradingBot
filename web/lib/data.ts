@@ -98,6 +98,64 @@ export async function getTrades(page: number, limit: number, ticker?: string) {
   });
 }
 
+/** Trade journal: one row per position (open + closed), entry/exit notionals and P&L. */
+export async function getPositionJournal(page: number, limit: number, ticker?: string) {
+  const empty = { rows: [] as Record<string, unknown>[], total: 0, page, limit };
+  return withData(empty, (db) => {
+    const offset = (page - 1) * limit;
+    const like = ticker ? `%${ticker}%` : null;
+    const baseWhere = like ? "WHERE ticker LIKE ?" : "";
+    const total = (
+      like
+        ? db.prepare(`SELECT COUNT(*) as c FROM positions ${baseWhere}`).get(like)
+        : db.prepare(`SELECT COUNT(*) as c FROM positions`).get()
+    ) as { c: number };
+    const sql = `
+      SELECT
+        id,
+        ticker,
+        direction,
+        instrument_type,
+        status,
+        quantity,
+        entry_date,
+        entry_price,
+        COALESCE(
+          entry_notional_usd,
+          ABS(quantity * entry_price)
+        ) AS entry_notional_usd,
+        exit_date,
+        exit_price,
+        CASE
+          WHEN status = 'OPEN' THEN NULL
+          ELSE COALESCE(
+            exit_notional_usd,
+            CASE
+              WHEN exit_price IS NOT NULL THEN ABS(quantity * exit_price)
+              ELSE NULL
+            END
+          )
+        END AS exit_notional_usd,
+        CASE WHEN status = 'CLOSED' THEN realized_pnl ELSE NULL END AS realized_pnl,
+        CASE
+          WHEN status = 'OPEN' THEN unrealized_pnl
+          ELSE NULL
+        END AS unrealized_pnl
+      FROM positions
+      ${baseWhere}
+      ORDER BY
+        CASE WHEN status = 'OPEN' THEN 0 ELSE 1 END,
+        CASE WHEN status = 'OPEN' THEN entry_date ELSE COALESCE(exit_date, entry_date) END DESC,
+        id DESC
+      LIMIT ?
+      OFFSET ?`;
+    const rows = like
+      ? (db.prepare(sql).all(like, limit, offset) as Record<string, unknown>[])
+      : (db.prepare(sql).all(limit, offset) as Record<string, unknown>[]);
+    return { rows, total: total.c, page, limit };
+  });
+}
+
 export async function getAnalysis(page: number, limit: number) {
   const empty = { rows: [] as Record<string, unknown>[], total: 0, page, limit };
   return withData(empty, (db) => {

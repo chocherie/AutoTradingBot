@@ -12,7 +12,7 @@ src/execution/     → `OrderIntent`, `PaperSimulator` (slippage + commissions)
 src/brain/         → Claude integration: prompt building, API calls, response parsing
 src/journal/       → Trade journal and performance metrics (Sharpe, drawdown, etc.)
 src/main.py        → Daily cycle: `python -m src.main` (`--date`, `--skip-claude`)
-config/            → instruments.yaml (universe), settings.yaml (parameters)
+config/            → instruments.yaml (universe), settings.yaml (`trading.options_enabled`, risk, Claude, …)
 web/               → Next.js 14 dashboard; local `DATABASE_PATH` or Vercel Blob (`BLOB_READ_WRITE_TOKEN`); `src.main` can POST DB via `DASHBOARD_DB_SYNC_*` → `/api/admin/sync-db`
 storage/           → SQLite database + logs (created at runtime, gitignored)
 specs/             → System and module specifications (source of truth for design)

@@ -1,4 +1,4 @@
-"""Assemble the 4-section daily user prompt (claude-brain spec)."""
+"""Assemble the daily user prompt: DAILY PIPELINE preamble + claude-brain data sections."""
 
 from __future__ import annotations
 
@@ -11,6 +11,26 @@ from src.utils.config import load_settings
 
 def _fmt_money(x: float) -> str:
     return f"${x:,.2f}"
+
+
+def _section_daily_pipeline() -> str:
+    """Context from docs/user-guide-trading-decisions.md — what already ran before this prompt."""
+    return "\n".join(
+        [
+            "## DAILY PIPELINE (already executed before you; execution order after your reply)",
+            "1. Prices were refreshed and the portfolio state below reflects the current book.",
+            "2. Stops and take-profits: any hit levels were closed automatically (you were not consulted).",
+            "3. Severe drawdown: if NAV breached `circuit_breaker_halt` in settings, the system force-closed "
+            "largest positions to reduce risk (automatic).",
+            "4. This briefing — portfolio, market stats, economic indicators, news — was built for you.",
+            "5. You respond once with JSON: `market_regime`, `macro_summary`, `orders`, "
+            "`positions_to_close`, `risk_notes`, and optional `session_learnings`.",
+            "6. After your reply, **`positions_to_close` is applied first** (flatten those tickers: "
+            "sell longs / cover shorts, rationale `claude_positions_to_close`); then `orders` are validated and filled.",
+            "",
+            "Machine rails run first; your plan is then checked against the real book and risk limits.",
+        ]
+    )
 
 
 def _section_portfolio(
@@ -31,15 +51,28 @@ def _section_portfolio(
     ytd = f"{ytd_return_pct:.2f}%" if ytd_return_pct is not None else "n/a"
     sh = f"{sharpe:.2f}" if sharpe is not None else "n/a"
 
+    st = load_settings()
+    mh = int(st.get("portfolio", {}).get("min_hold_calendar_days", 1) or 0)
+    tz_ref = st.get("schedule", {}).get("timezone", "America/New_York")
+
     lines = [
         f"## PORTFOLIO STATE (as of {as_of})",
         f"NAV: {_fmt_money(nav)} | Cash: {_fmt_money(cash)} | Margin Used: {mu:.1f}% | "
         f"Daily Return: {dr} | YTD Return: {ytd} | Sharpe: {sh}",
-        "",
-        "OPEN POSITIONS:",
-        "| Ticker | Dir | Qty | Entry | Current | Unrealized P&L | Stop | TP |",
-        "|--------|-----|-----|-------|---------|----------------|------|----|",
     ]
+    if mh > 0:
+        lines.append(
+            f"**Min hold:** {mh} session calendar day(s) before any exit (stops/Claude/circuit); "
+            f"live session date uses `{tz_ref}`."
+        )
+    lines.extend(
+        [
+            "",
+            "OPEN POSITIONS:",
+            "| Ticker | Dir | Qty | Entry | Current | Unrealized P&L | Stop | TP |",
+            "|--------|-----|-----|-------|---------|----------------|------|----|",
+        ]
+    )
     reg = build_registry()
     for p in portfolio.get_open_positions():
         meta = reg.get(p.ticker)
@@ -180,6 +213,7 @@ def build_user_prompt(
     mem_n = int(load_settings().get("claude", {}).get("session_memory_prompt_lines", 40))
     learn_block = _section_prior_learnings(portfolio, mem_n)
     parts = [
+        _section_daily_pipeline(),
         _section_portfolio(
             as_of,
             portfolio,

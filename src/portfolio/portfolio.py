@@ -6,6 +6,7 @@ import sqlite3
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+from src.portfolio.hold_rules import min_hold_exit_blocked
 from src.portfolio.instrument_registry import InstrumentMeta, build_registry, resolve_fx_to_usd
 from src.portfolio.margin import margin_required_usd
 from src.portfolio.position import Position
@@ -57,6 +58,8 @@ def ensure_schema(conn: sqlite3.Connection) -> None:
             realized_pnl REAL,
             margin_required REAL DEFAULT 0,
             notional_value REAL DEFAULT 0,
+            entry_notional_usd REAL,
+            exit_notional_usd REAL,
             option_type TEXT,
             strike REAL,
             expiry TEXT,
@@ -121,6 +124,12 @@ def _migrate_schema(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE trades ADD COLUMN confidence TEXT")
     if "signal_source" not in cols:
         conn.execute("ALTER TABLE trades ADD COLUMN signal_source TEXT")
+
+    pcols = {str(r[1]) for r in conn.execute("PRAGMA table_info(positions)").fetchall()}
+    if "entry_notional_usd" not in pcols:
+        conn.execute("ALTER TABLE positions ADD COLUMN entry_notional_usd REAL")
+    if "exit_notional_usd" not in pcols:
+        conn.execute("ALTER TABLE positions ADD COLUMN exit_notional_usd REAL")
 
 
 class Portfolio:
@@ -366,6 +375,10 @@ class Portfolio:
         if meta is None:
             raise ValueError(f"Unknown ticker {target.ticker}")
 
+        blocked = min_hold_exit_blocked(target.entry_date, exit_date, load_settings())
+        if blocked:
+            raise ValueError(blocked)
+
         fx = resolve_fx_to_usd(meta, {target.ticker: exit_price})
         realized = 0.0
         if target.instrument_type == "future":
@@ -375,7 +388,10 @@ class Portfolio:
                 realized = (target.entry_price - exit_price) * target.quantity * meta.multiplier
         elif target.instrument_type == "option":
             om = meta.option_contract_multiplier or 100.0
-            realized = (exit_price - target.entry_price) * target.quantity * om
+            if target.direction == "LONG":
+                realized = (exit_price - target.entry_price) * target.quantity * om
+            else:
+                realized = (target.entry_price - exit_price) * target.quantity * om
         else:
             if target.direction == "LONG":
                 realized = (exit_price - target.entry_price) * target.quantity * fx
@@ -383,13 +399,37 @@ class Portfolio:
                 realized = (target.entry_price - exit_price) * target.quantity * fx
 
         realized -= commission
-        self._cash += realized
+
+        if target.instrument_type == "future":
+            exit_notional_usd = abs(target.quantity * exit_price * meta.multiplier)
+        elif target.instrument_type == "option":
+            om = meta.option_contract_multiplier or 100.0
+            exit_notional_usd = abs(target.quantity * exit_price * om)
+        else:
+            exit_notional_usd = abs(target.quantity * exit_price * fx)
+
+        # Cash: futures/options-on-margin only move cash by P&L (opening paid commissions only).
+        # Spot longs pay full notional on add_position; closing must credit sale proceeds, not P&L only.
+        # Spot shorts receive proceeds on open; closing must debit cover cost + exit commission.
+        if target.instrument_type == "future":
+            self._cash += realized
+        elif target.instrument_type == "option":
+            om = meta.option_contract_multiplier or 100.0
+            if target.direction == "LONG":
+                self._cash += exit_price * target.quantity * om - commission
+            else:
+                self._cash -= exit_price * target.quantity * om + commission
+        else:
+            if target.direction == "LONG":
+                self._cash += exit_price * target.quantity * fx - commission
+            else:
+                self._cash -= exit_price * target.quantity * fx + commission
 
         with self._conn() as conn:
             conn.execute(
                 """UPDATE positions SET status='CLOSED', exit_price=?, exit_date=?,
-                realized_pnl=? WHERE id=?""",
-                (exit_price, exit_date, realized, position_id),
+                realized_pnl=?, exit_notional_usd=? WHERE id=?""",
+                (exit_price, exit_date, realized, exit_notional_usd, position_id),
             )
             conn.execute(
                 """INSERT INTO trades (position_id, ticker, instrument_type, action,
@@ -447,7 +487,10 @@ class Portfolio:
             pass
         elif pos.instrument_type == "option":
             om = meta.option_contract_multiplier or 100.0
-            opening_cash_delta -= pos.entry_price * pos.quantity * om
+            if pos.direction == "LONG":
+                opening_cash_delta -= pos.entry_price * pos.quantity * om
+            else:
+                opening_cash_delta += pos.entry_price * pos.quantity * om
         else:
             if pos.direction == "LONG":
                 opening_cash_delta -= pos.entry_price * pos.quantity * fx
@@ -471,8 +514,8 @@ class Portfolio:
                 ticker, asset_class, instrument_type, direction, quantity,
                 entry_price, entry_date, current_price, unrealized_pnl,
                 stop_loss, take_profit, status, margin_required, notional_value,
-                option_type, strike, expiry) VALUES
-                (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                entry_notional_usd, option_type, strike, expiry) VALUES
+                (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (
                     pos.ticker,
                     pos.asset_class,
@@ -487,6 +530,7 @@ class Portfolio:
                     pos.take_profit,
                     "OPEN",
                     pos.margin_required,
+                    pos.notional_value,
                     pos.notional_value,
                     pos.option_type,
                     pos.strike,
