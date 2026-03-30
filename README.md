@@ -96,6 +96,8 @@ Point the app at your SQLite file if needed (default layout assumes repo-relativ
 export DATABASE_PATH=/absolute/path/to/AutoTradingBot/storage/trading_bot.db
 ```
 
+**Production (Vercel):** the serverless app cannot read your Mac’s SQLite. Enable **Vercel Blob** on the project, add `BLOB_READ_WRITE_TOKEN` and `DB_UPLOAD_SECRET`, and set `DASHBOARD_DB_SYNC_URL` + `DASHBOARD_DB_SYNC_SECRET` in your **local** `.env` (same secret as `DB_UPLOAD_SECRET`). After each daily run, `src.main` posts the DB to `/api/admin/sync-db`; the site downloads the latest blob when no local file is present. The uploaded object is **publicly readable by URL**—acceptable for paper trading only.
+
 ---
 
 ## Scheduling (macOS)
@@ -111,7 +113,7 @@ cp scripts/launchd/com.autotradingbot.daily.plist ~/Library/LaunchAgents/
 launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.autotradingbot.daily.plist
 ```
 
-The Mac must be **awake** at the scheduled time. See comments in the plist and [AGENTS.md](AGENTS.md) for paths and env.
+The Mac must be **awake** at the scheduled time. See comments in the plist and [AGENTS.md](AGENTS.md) for paths and env. To push the DB to Vercel after each run, add `DASHBOARD_DB_SYNC_URL` and `DASHBOARD_DB_SYNC_SECRET` (and your API keys) under `EnvironmentVariables` in the plist—or run via a small shell wrapper that `source`s `.env`.
 
 ---
 

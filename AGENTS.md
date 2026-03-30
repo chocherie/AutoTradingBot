@@ -13,7 +13,7 @@ src/brain/         → Claude integration: prompt building, API calls, response 
 src/journal/       → Trade journal and performance metrics (Sharpe, drawdown, etc.)
 src/main.py        → Daily cycle: `python -m src.main` (`--date`, `--skip-claude`)
 config/            → instruments.yaml (universe), settings.yaml (parameters)
-web/               → Next.js 14 dashboard; set `DATABASE_PATH` to repo `storage/trading_bot.db` if not default
+web/               → Next.js 14 dashboard; local `DATABASE_PATH` or Vercel Blob (`BLOB_READ_WRITE_TOKEN`); `src.main` can POST DB via `DASHBOARD_DB_SYNC_*` → `/api/admin/sync-db`
 storage/           → SQLite database + logs (created at runtime, gitignored)
 specs/             → System and module specifications (source of truth for design)
 docs/              → Architecture, quality scorecard, core beliefs
@@ -24,6 +24,7 @@ tests/             → Unit and integration tests
 - `FRED_API_KEY` — [FRED API key](https://fred.stlouisfed.org/docs/api/api_key.html)
 - `FINNHUB_API_KEY` — [Finnhub](https://finnhub.io/register)
 - Optional: `ANTHROPIC_API_KEY` (Phase 3+)
+- Hosted dashboard sync: `DASHBOARD_DB_SYNC_URL`, `DASHBOARD_DB_SYNC_SECRET` (bot); Vercel `BLOB_READ_WRITE_TOKEN`, `DB_UPLOAD_SECRET` (web). See README “Web dashboard”.
 
 ## Key Commands
 ```bash

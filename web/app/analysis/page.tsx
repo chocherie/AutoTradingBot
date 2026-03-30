@@ -10,7 +10,7 @@ export default async function AnalysisPage({
 }) {
   const sp = await searchParams;
   const page = Math.max(1, parseInt(sp.page || "1", 10));
-  const { rows, total, limit } = getAnalysis(page, 15);
+  const { rows, total, limit } = await getAnalysis(page, 15);
   const pages = Math.max(1, Math.ceil(total / limit));
 
   return (

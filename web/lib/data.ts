@@ -1,9 +1,10 @@
 import type Database from "better-sqlite3";
-import { getDb } from "./db";
+import { getDbAsync } from "./db";
 
-function withData<T>(fallback: T, run: (db: Database.Database) => T): T {
+async function withData<T>(fallback: T, run: (db: Database.Database) => T): Promise<T> {
   try {
-    return run(getDb());
+    const db = await getDbAsync();
+    return run(db);
   } catch (e) {
     console.warn("[auto-trading-bot-web] database:", e);
     return fallback;
@@ -26,7 +27,7 @@ const emptySummary: PortfolioSummary = {
   dbUnavailable: true,
 };
 
-export function getPortfolioSummary(): PortfolioSummary {
+export async function getPortfolioSummary(): Promise<PortfolioSummary> {
   return withData(emptySummary, (db) => {
     const snapshot = db
       .prepare(
@@ -50,7 +51,7 @@ export function getPortfolioSummary(): PortfolioSummary {
   });
 }
 
-export function getNavHistory(days: number) {
+export async function getNavHistory(days: number) {
   return withData([], (db) => {
     const rows = db
       .prepare(
@@ -62,7 +63,7 @@ export function getNavHistory(days: number) {
   });
 }
 
-export function getPositions(status: string) {
+export async function getPositions(status: string) {
   return withData([], (db) =>
     db
       .prepare(
@@ -72,7 +73,7 @@ export function getPositions(status: string) {
   );
 }
 
-export function getTrades(page: number, limit: number, ticker?: string) {
+export async function getTrades(page: number, limit: number, ticker?: string) {
   const empty = { rows: [] as Record<string, unknown>[], total: 0, page, limit };
   return withData(empty, (db) => {
     const offset = (page - 1) * limit;
@@ -97,7 +98,7 @@ export function getTrades(page: number, limit: number, ticker?: string) {
   });
 }
 
-export function getAnalysis(page: number, limit: number) {
+export async function getAnalysis(page: number, limit: number) {
   const empty = { rows: [] as Record<string, unknown>[], total: 0, page, limit };
   return withData(empty, (db) => {
     const offset = (page - 1) * limit;
@@ -128,7 +129,7 @@ const emptyPerf = {
   cumulativeReturn: null as number | null,
 };
 
-export function getPerformanceBundle() {
+export async function getPerformanceBundle() {
   return withData(emptyPerf, (db) => {
     const snaps = db
       .prepare(
@@ -196,7 +197,9 @@ export type PositionsPageData = {
   dbUnavailable: boolean;
 };
 
-export function getPositionsPageData(showClosed: boolean): PositionsPageData {
+export async function getPositionsPageData(
+  showClosed: boolean,
+): Promise<PositionsPageData> {
   const fallback: PositionsPageData = {
     open: [],
     closed: [],

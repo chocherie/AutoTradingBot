@@ -3,8 +3,8 @@ import { DrawdownArea, RollingSharpeLine } from "../components/PerfCharts";
 
 export const dynamic = "force-dynamic";
 
-export default function PerformancePage() {
-  const perf = getPerformanceBundle();
+export default async function PerformancePage() {
+  const perf = await getPerformanceBundle();
   const snaps = perf.snapshots;
 
   return (

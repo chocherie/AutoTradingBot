@@ -13,14 +13,14 @@ function fmtMoney(n: number) {
 }
 
 export default async function DashboardPage() {
-  const summary = getPortfolioSummary();
-  const history = getNavHistory(400) as {
+  const summary = await getPortfolioSummary();
+  const history = (await getNavHistory(400)) as {
     date: string;
     nav: number;
     daily_return: number | null;
     total_margin_used: number | null;
   }[];
-  const perf = getPerformanceBundle();
+  const perf = await getPerformanceBundle();
   const snap = summary.snapshot as Record<string, unknown> | undefined;
   const nav = (snap?.nav as number) ?? (summary.meta?.cash as number) ?? 0;
   const cash = (snap?.cash as number) ?? summary.meta?.cash ?? 0;
@@ -45,10 +45,13 @@ export default async function DashboardPage() {
     <div className="space-y-8">
       {summary.dbUnavailable && (
         <div className="rounded-lg border border-tape-amber/40 bg-tape-amber/10 px-4 py-3 text-sm text-tape-amber">
-          <strong>No SQLite file on this server.</strong> Vercel has no{" "}
-          <code className="font-mono text-xs">storage/trading_bot.db</code> from your Mac. Set env{" "}
-          <code className="font-mono text-xs">DATABASE_PATH</code> to a deployed database, or open the
-          dashboard locally after running the bot.
+          <strong>No database available here yet.</strong> On Vercel, enable{" "}
+          <strong>Vercel Blob</strong>, set <code className="font-mono text-xs">BLOB_READ_WRITE_TOKEN</code>{" "}
+          and <code className="font-mono text-xs">DB_UPLOAD_SECRET</code>, and run the bot with{" "}
+          <code className="font-mono text-xs">DASHBOARD_DB_SYNC_URL</code> pointing at{" "}
+          <code className="font-mono text-xs">/api/admin/sync-db</code>. Or use{" "}
+          <code className="font-mono text-xs">npm run dev</code> locally next to{" "}
+          <code className="font-mono text-xs">storage/trading_bot.db</code>.
         </div>
       )}
       <div>

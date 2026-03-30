@@ -8,7 +8,7 @@ export async function GET(req: Request) {
     if (status !== "OPEN" && status !== "CLOSED") {
       return NextResponse.json({ error: "status must be OPEN or CLOSED" }, { status: 400 });
     }
-    return NextResponse.json({ positions: getPositions(status) });
+    return NextResponse.json({ positions: await getPositions(status) });
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: 500 });
   }

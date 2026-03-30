@@ -5,7 +5,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    return NextResponse.json(getPerformanceBundle());
+    return NextResponse.json(await getPerformanceBundle());
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: 500 });
   }

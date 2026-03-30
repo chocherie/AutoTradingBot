@@ -10,7 +10,7 @@ export default async function TradesPage({
 }) {
   const sp = await searchParams;
   const page = Math.max(1, parseInt(sp.page || "1", 10));
-  const { rows, total, limit } = getTrades(page, 20, sp.ticker);
+  const { rows, total, limit } = await getTrades(page, 20, sp.ticker);
   const pages = Math.max(1, Math.ceil(total / limit));
 
   return (

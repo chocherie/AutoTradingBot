@@ -27,6 +27,7 @@ from src.journal.performance import (
 from src.portfolio import risk
 from src.portfolio.portfolio import Portfolio
 from src.utils.config import load_settings
+from src.utils.dashboard_sync import maybe_sync_dashboard_db
 from src.utils.logging_config import setup_logging
 
 logger = logging.getLogger(__name__)
@@ -260,6 +261,11 @@ def run_daily(as_of: str, *, skip_claude: bool = False) -> None:
         "daily_cycle_complete",
         extra={"as_of": as_of, "nav": nav_final, "skip_claude": skip_claude},
     )
+
+    try:
+        maybe_sync_dashboard_db()
+    except Exception as e:
+        logger.warning("dashboard_sync_failed", extra={"error": str(e)})
 
 
 def main() -> None:

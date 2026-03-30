@@ -9,7 +9,7 @@ export default async function PositionsPage({
 }) {
   const sp = await searchParams;
   const showClosed = sp.closed === "1";
-  const { open, closed, snap, dbUnavailable } = getPositionsPageData(showClosed);
+  const { open, closed, snap, dbUnavailable } = await getPositionsPageData(showClosed);
   const nav = snap?.nav ?? 1;
   const mu = snap?.nav ? ((snap.total_margin_used || 0) / snap.nav) * 100 : 0;
 
@@ -17,9 +17,13 @@ export default async function PositionsPage({
     <div className="space-y-8">
       {dbUnavailable && (
         <div className="rounded-lg border border-tape-amber/40 bg-tape-amber/10 px-4 py-3 text-sm text-tape-amber">
-          <strong>Database not available.</strong> On Vercel, set{" "}
-          <code className="font-mono text-xs">DATABASE_PATH</code> to a readable SQLite file, or run
-          the dashboard locally next to <code className="font-mono text-xs">storage/trading_bot.db</code>.
+          <strong>No database available here yet.</strong> On Vercel, enable Vercel Blob, set{" "}
+          <code className="font-mono text-xs">BLOB_READ_WRITE_TOKEN</code> and{" "}
+          <code className="font-mono text-xs">DB_UPLOAD_SECRET</code>, and run the bot with{" "}
+          <code className="font-mono text-xs">DASHBOARD_DB_SYNC_URL</code> pointing at{" "}
+          <code className="font-mono text-xs">/api/admin/sync-db</code>. Or run{" "}
+          <code className="font-mono text-xs">npm run dev</code> locally next to{" "}
+          <code className="font-mono text-xs">storage/trading_bot.db</code>.
         </div>
       )}
       <div className="flex flex-wrap justify-between gap-4 items-start">
