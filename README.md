@@ -96,7 +96,7 @@ Point the app at your SQLite file if needed (default layout assumes repo-relativ
 export DATABASE_PATH=/absolute/path/to/AutoTradingBot/storage/trading_bot.db
 ```
 
-**Production (Vercel):** the serverless app cannot read your Mac’s SQLite. Enable **Vercel Blob** on the project, add `BLOB_READ_WRITE_TOKEN` and `DB_UPLOAD_SECRET`, and set `DASHBOARD_DB_SYNC_URL` + `DASHBOARD_DB_SYNC_SECRET` in your **local** `.env` (same secret as `DB_UPLOAD_SECRET`). After each daily run, `src.main` posts the DB to `/api/admin/sync-db`; the site downloads the latest blob when no local file is present. The uploaded object is **publicly readable by URL**—acceptable for paper trading only.
+**Production (Vercel):** the serverless app cannot read your Mac’s SQLite. Enable **Vercel Blob** on the project, add `BLOB_READ_WRITE_TOKEN` and `DB_UPLOAD_SECRET`, and set `DASHBOARD_DB_SYNC_URL` + `DASHBOARD_DB_SYNC_SECRET` in your **local** `.env` (same secret as `DB_UPLOAD_SECRET`). After each daily run, `src.main` posts the DB to `/api/admin/sync-db`; the site downloads the latest blob when no local file is present. Use a **private** Blob store: uploads use `access: 'private'`, and reads use your server token (not a public URL).
 
 ---
 

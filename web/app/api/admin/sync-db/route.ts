@@ -43,11 +43,17 @@ export async function POST(req: Request) {
   if (buf.length < 512) {
     return NextResponse.json({ error: "Body too small for a SQLite file" }, { status: 400 });
   }
-  await put(DASHBOARD_BLOB_PATHNAME, buf, {
-    access: "public",
-    addRandomSuffix: false,
-    token,
-    contentType: "application/x-sqlite3",
-  });
+  try {
+    await put(DASHBOARD_BLOB_PATHNAME, buf, {
+      access: "private",
+      addRandomSuffix: false,
+      allowOverwrite: true,
+      token,
+      contentType: "application/x-sqlite3",
+    });
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
   return NextResponse.json({ ok: true, bytes: buf.length });
 }

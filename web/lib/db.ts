@@ -53,7 +53,9 @@ async function openFromBlob(): Promise<Database.Database> {
     return _db;
   }
   closeDb();
-  const res = await fetch(match.downloadUrl);
+  const res = await fetch(match.downloadUrl, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
   if (!res.ok) {
     throw new Error(`Blob download failed: ${res.status}`);
   }
