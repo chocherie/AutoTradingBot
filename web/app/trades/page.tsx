@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { getPositionJournal } from "@/lib/data";
+import { getInstrumentDisplayName } from "@/lib/instruments";
 
 export const dynamic = "force-dynamic";
 
@@ -33,10 +34,10 @@ export default async function TradesPage({
         </p>
       </div>
       <div className="card overflow-x-auto">
-        <table className="w-full text-left text-sm min-w-[1100px]">
+        <table className="w-full text-left text-sm min-w-[1180px]">
           <thead>
             <tr className="text-[var(--muted)] text-xs uppercase border-b border-[var(--border)]">
-              <th className="p-3">Ticker</th>
+              <th className="p-3 min-w-[160px]">Ticker / name</th>
               <th className="p-3">Dir</th>
               <th className="p-3">Status</th>
               <th className="p-3 text-right">Qty</th>
@@ -54,6 +55,8 @@ export default async function TradesPage({
               const open = String(r.status) === "OPEN";
               const rpnl = r.realized_pnl != null ? Number(r.realized_pnl) : null;
               const upnl = r.unrealized_pnl != null ? Number(r.unrealized_pnl) : null;
+              const tk = String(r.ticker);
+              const dn = getInstrumentDisplayName(tk);
               const pnlDisplay = open
                 ? upnl != null
                   ? `${upnl >= 0 ? "+" : ""}${fmtMoney(upnl)}`
@@ -63,7 +66,14 @@ export default async function TradesPage({
                   : "—";
               return (
                 <tr key={String(r.id)} className="border-t border-[var(--border)] align-top">
-                  <td className="p-3 font-mono">{String(r.ticker)}</td>
+                  <td className="p-3">
+                    <div className="font-mono">{tk}</div>
+                    {dn !== tk && (
+                      <div className="text-xs text-[var(--muted)] mt-1 leading-snug max-w-[200px]">
+                        {dn}
+                      </div>
+                    )}
+                  </td>
                   <td className="p-3 text-xs">{String(r.direction)}</td>
                   <td className="p-3 text-xs">{String(r.status)}</td>
                   <td className="p-3 font-mono text-right">{Number(r.quantity).toPrecision(4)}</td>

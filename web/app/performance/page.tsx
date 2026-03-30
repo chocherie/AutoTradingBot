@@ -14,7 +14,12 @@ export default async function PerformancePage() {
       <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
         {[
           ["Sharpe", perf.sharpeRatio != null ? perf.sharpeRatio.toFixed(2) : "—"],
-          ["Max drawdown", perf.maxDrawdown != null ? `${(perf.maxDrawdown * 100).toFixed(2)}%` : "—"],
+          [
+            "Max drawdown",
+            perf.maxDrawdown != null
+              ? `${(-Math.abs(perf.maxDrawdown) * 100).toFixed(2)}%`
+              : "—",
+          ],
           ["Win rate", perf.winRate != null ? `${(perf.winRate * 100).toFixed(1)}%` : "—"],
           ["Closed trades", String(perf.tradeCount)],
         ].map(([k, v]) => (

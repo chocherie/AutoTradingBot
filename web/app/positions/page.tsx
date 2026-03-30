@@ -1,4 +1,5 @@
 import { getPositionsPageData } from "@/lib/data";
+import { getInstrumentDisplayName } from "@/lib/instruments";
 
 export const dynamic = "force-dynamic";
 
@@ -57,7 +58,7 @@ export default async function PositionsPage({
         <table className="w-full text-left text-sm">
           <thead>
             <tr className="text-[var(--muted)] text-xs uppercase">
-              <th className="pb-2">Ticker</th>
+              <th className="pb-2 min-w-[140px]">Ticker / name</th>
               <th className="pb-2">Class</th>
               <th className="pb-2">Dir</th>
               <th className="pb-2 text-right">Qty</th>
@@ -73,9 +74,18 @@ export default async function PositionsPage({
             {open.map((p) => {
               const pctNav = nav > 0 ? ((Number(p.notional_value) || 0) / nav) * 100 : 0;
               const up = p.unrealized_pnl as number | null;
+              const tk = String(p.ticker);
+              const dn = getInstrumentDisplayName(tk);
               return (
                 <tr key={String(p.id)} className="border-t border-[var(--border)]">
-                  <td className="py-2 pr-3 font-mono">{String(p.ticker)}</td>
+                  <td className="py-2 pr-3">
+                    <div className="font-mono">{tk}</div>
+                    {dn !== tk && (
+                      <div className="text-xs text-[var(--muted)] mt-0.5 leading-snug max-w-[220px]">
+                        {dn}
+                      </div>
+                    )}
+                  </td>
                   <td className="py-2 pr-3">{String(p.asset_class)}</td>
                   <td className="py-2 pr-3">{String(p.direction)}</td>
                   <td className="py-2 pr-3 font-mono text-right">
@@ -117,7 +127,7 @@ export default async function PositionsPage({
           <table className="w-full text-left text-sm">
             <thead>
               <tr className="text-[var(--muted)] text-xs uppercase">
-                <th className="pb-2">Ticker</th>
+                <th className="pb-2 min-w-[140px]">Ticker / name</th>
                 <th className="pb-2">Class</th>
                 <th className="pb-2">Dir</th>
                 <th className="pb-2 text-right">Qty</th>
@@ -127,21 +137,32 @@ export default async function PositionsPage({
               </tr>
             </thead>
             <tbody>
-              {closed.map((p) => (
-                <tr key={String(p.id)} className="border-t border-[var(--border)]">
-                  <td className="py-2 font-mono">{String(p.ticker)}</td>
-                  <td className="py-2">{String(p.asset_class)}</td>
-                  <td className="py-2">{String(p.direction)}</td>
-                  <td className="py-2 font-mono text-right">{Number(p.quantity).toPrecision(4)}</td>
-                  <td className="py-2 font-mono text-right">{Number(p.entry_price).toFixed(2)}</td>
-                  <td className="py-2 font-mono text-right">
-                    {p.exit_price != null ? Number(p.exit_price).toFixed(2) : "—"}
-                  </td>
-                  <td className="py-2 font-mono text-right">
-                    {p.realized_pnl != null ? Number(p.realized_pnl).toFixed(0) : "—"}
-                  </td>
-                </tr>
-              ))}
+              {closed.map((p) => {
+                const tk = String(p.ticker);
+                const dn = getInstrumentDisplayName(tk);
+                return (
+                  <tr key={String(p.id)} className="border-t border-[var(--border)]">
+                    <td className="py-2">
+                      <div className="font-mono">{tk}</div>
+                      {dn !== tk && (
+                        <div className="text-xs text-[var(--muted)] mt-0.5 leading-snug max-w-[220px]">
+                          {dn}
+                        </div>
+                      )}
+                    </td>
+                    <td className="py-2">{String(p.asset_class)}</td>
+                    <td className="py-2">{String(p.direction)}</td>
+                    <td className="py-2 font-mono text-right">{Number(p.quantity).toPrecision(4)}</td>
+                    <td className="py-2 font-mono text-right">{Number(p.entry_price).toFixed(2)}</td>
+                    <td className="py-2 font-mono text-right">
+                      {p.exit_price != null ? Number(p.exit_price).toFixed(2) : "—"}
+                    </td>
+                    <td className="py-2 font-mono text-right">
+                      {p.realized_pnl != null ? Number(p.realized_pnl).toFixed(0) : "—"}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

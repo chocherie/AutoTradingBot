@@ -35,6 +35,11 @@ def load_snapshot_rows(limit: int = 500) -> List[Tuple[Any, ...]]:
 
 
 def prior_nav_before(as_of: str) -> Optional[float]:
+    """Previous session NAV for daily return: last snapshot strictly before *as_of*, else initial capital.
+
+    Never use ``portfolio_meta.cash`` here — with open positions, cash understates total portfolio value
+    and makes *daily return* look like ``NAV / cash - 1`` (bogus large positive prints).
+    """
     path = db_path()
     if not path.exists():
         return None
@@ -43,11 +48,6 @@ def prior_nav_before(as_of: str) -> Optional[float]:
         row = conn.execute(
             "SELECT nav FROM portfolio_snapshots WHERE date < ? ORDER BY date DESC LIMIT 1",
             (as_of,),
-        ).fetchone()
-        if row:
-            return float(row[0])
-        row = conn.execute(
-            "SELECT cash FROM portfolio_meta WHERE id = 1",
         ).fetchone()
         if row:
             return float(row[0])
@@ -63,10 +63,11 @@ def compute_metrics_from_nav_series(
     annualization: float = 252.0,
 ) -> Dict[str, Optional[float]]:
     if len(navs) < 2:
+        cum0 = ((navs[0] / initial_nav) - 1.0) if len(navs) == 1 and initial_nav else None
         return {
-            "cumulative_return": None,
+            "cumulative_return": float(cum0) if cum0 is not None else None,
             "sharpe_ratio": None,
-            "max_drawdown": None,
+            "max_drawdown": 0.0 if len(navs) == 1 else None,
             "sortino_ratio": None,
             "calmar_ratio": None,
         }

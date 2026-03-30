@@ -4,7 +4,8 @@ import {
   getPerformanceBundle,
   getPortfolioSummary,
 } from "@/lib/data";
-import { AllocationDonut, DailyReturnsBar, EquityLine } from "./components/DashboardCharts";
+import { getInstrumentDisplayName } from "@/lib/instruments";
+import { AllocationLongShortBars, DailyReturnsBar, EquityLine } from "./components/DashboardCharts";
 
 export const dynamic = "force-dynamic";
 
@@ -27,16 +28,29 @@ export default async function DashboardPage() {
   const regime = summary.regime?.market_regime as string | undefined;
   const lastDate = snap?.date as string | undefined;
 
-  const positions = summary.positions as {
-    asset_class: string;
-    notional_value: number;
-  }[];
-  const allocMap: Record<string, number> = {};
-  for (const p of positions) {
-    const k = p.asset_class || "other";
-    allocMap[k] = (allocMap[k] || 0) + (Number(p.notional_value) || 0);
-  }
-  const allocData = Object.entries(allocMap).map(([name, value]) => ({ name, value }));
+  const positions = summary.positions as Record<string, unknown>[];
+  const allocRows = positions.map((p) => {
+    const ticker = String(p.ticker ?? "");
+    const direction = String(p.direction ?? "");
+    const notional = Number(p.notional_value) || 0;
+    const entry =
+      p.entry_notional_usd != null && Number.isFinite(Number(p.entry_notional_usd))
+        ? Number(p.entry_notional_usd)
+        : null;
+    const upnl =
+      p.unrealized_pnl != null && Number.isFinite(Number(p.unrealized_pnl))
+        ? Number(p.unrealized_pnl)
+        : null;
+    const returnPct =
+      entry != null && entry > 0 && upnl != null ? (upnl / entry) * 100 : null;
+    return {
+      ticker,
+      name: getInstrumentDisplayName(ticker),
+      direction,
+      notional,
+      returnPct,
+    };
+  });
 
   const cumRet = perf.cumulativeReturn != null ? perf.cumulativeReturn * 100 : null;
   const todayRet = snap?.daily_return != null ? Number(snap.daily_return) * 100 : null;
@@ -68,7 +82,12 @@ export default async function DashboardPage() {
           ["Total return", cumRet != null ? `${cumRet >= 0 ? "+" : ""}${cumRet.toFixed(2)}%` : "—"],
           ["Today", todayRet != null ? `${todayRet >= 0 ? "+" : ""}${todayRet.toFixed(3)}%` : "—"],
           ["Sharpe", perf.sharpeRatio != null ? perf.sharpeRatio.toFixed(2) : "—"],
-          ["Max DD", perf.maxDrawdown != null ? `${(perf.maxDrawdown * 100).toFixed(2)}%` : "—"],
+          [
+            "Max DD",
+            perf.maxDrawdown != null
+              ? `${(-Math.abs(perf.maxDrawdown) * 100).toFixed(2)}%`
+              : "—",
+          ],
         ].map(([k, v]) => (
           <div key={k} className="card p-4">
             <div className="text-xs text-[var(--muted)] uppercase tracking-wide">{k}</div>
@@ -94,8 +113,10 @@ export default async function DashboardPage() {
           <DailyReturnsBar data={history} />
         </div>
         <div className="card p-5">
-          <h2 className="text-sm font-medium text-[var(--muted)] mb-4">Allocation (notional)</h2>
-          <AllocationDonut data={allocData} />
+          <h2 className="text-sm font-medium text-[var(--muted)] mb-4">
+            Exposure by position (signed notional)
+          </h2>
+          <AllocationLongShortBars data={allocRows} />
         </div>
         <div className="card p-5 flex flex-col justify-center">
           <h2 className="text-sm font-medium text-[var(--muted)] mb-2">Latest macro</h2>

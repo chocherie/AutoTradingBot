@@ -177,6 +177,7 @@ const emptyPerf = {
     date: string;
     nav: number;
     daily_return: number | null;
+    cumulative_return: number | null;
     sharpe_ratio: number | null;
     max_drawdown: number | null;
   }[],
@@ -191,12 +192,13 @@ export async function getPerformanceBundle() {
   return withData(emptyPerf, (db) => {
     const snaps = db
       .prepare(
-        `SELECT date, nav, daily_return, sharpe_ratio, max_drawdown FROM portfolio_snapshots ORDER BY date ASC`,
+        `SELECT date, nav, daily_return, cumulative_return, sharpe_ratio, max_drawdown FROM portfolio_snapshots ORDER BY date ASC`,
       )
       .all() as {
       date: string;
       nav: number;
       daily_return: number | null;
+      cumulative_return: number | null;
       sharpe_ratio: number | null;
       max_drawdown: number | null;
     }[];
@@ -235,6 +237,13 @@ export async function getPerformanceBundle() {
 
     const lastSharpe = snaps.length ? snaps[snaps.length - 1].sharpe_ratio : null;
     const lastMdd = snaps.length ? snaps[snaps.length - 1].max_drawdown : null;
+    const lastCum = snaps.length ? snaps[snaps.length - 1].cumulative_return : null;
+    const cumFromSnaps =
+      navs.length >= 2 && navs[0] > 0 ? navs[navs.length - 1] / navs[0] - 1 : null;
+    const cumulativeReturn =
+      lastCum != null && Number.isFinite(Number(lastCum))
+        ? Number(lastCum)
+        : cumFromSnaps;
 
     return {
       snapshots: snaps,
@@ -242,8 +251,7 @@ export async function getPerformanceBundle() {
       tradeCount: pnls.length,
       sharpeRatio: lastSharpe ?? sharpe,
       maxDrawdown: lastMdd ?? maxDd,
-      cumulativeReturn:
-        navs.length >= 1 && navs[0] > 0 ? navs[navs.length - 1] / navs[0] - 1 : null,
+      cumulativeReturn,
     };
   });
 }
