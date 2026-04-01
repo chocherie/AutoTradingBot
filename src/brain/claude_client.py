@@ -4,11 +4,15 @@ from __future__ import annotations
 
 import logging
 import os
+import ssl
+import sys
 import time
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple
 
 import anthropic
+import certifi
+import httpx
 
 from src.utils.config import load_settings
 
@@ -154,11 +158,51 @@ class ClaudeUsage:
     model: str
 
 
+def _exception_chain(exc: BaseException, *, max_depth: int = 5) -> str:
+    """Join exception types + messages along __cause__ (SDK often hides root SSL errors)."""
+    parts: List[str] = []
+    cur: Optional[BaseException] = exc
+    depth = 0
+    while cur is not None and depth < max_depth:
+        parts.append(f"{type(cur).__name__}: {cur}")
+        cur = cur.__cause__
+        depth += 1
+    return " <- ".join(parts) if parts else repr(exc)
+
+
+def _ssl_context_for_anthropic() -> ssl.SSLContext:
+    """TLS context for Anthropic API. Prefers truststore (macOS Keychain) on 3.10+, else certifi."""
+    override = os.environ.get("SSL_CERT_FILE", "").strip()
+    if override:
+        return ssl.create_default_context(cafile=override)
+    if sys.version_info >= (3, 10):
+        try:
+            import truststore
+
+            return truststore.ssl_context()
+        except Exception:
+            logger.debug("truststore not used; falling back to certifi", exc_info=True)
+    ca = certifi.where()
+    if not os.path.isfile(ca):
+        logger.warning(
+            "certifi CA bundle missing at %s; install certifi in this venv: pip install certifi",
+            ca,
+        )
+        return ssl.create_default_context()
+    return ssl.create_default_context(cafile=ca)
+
+
 def _client() -> anthropic.Anthropic:
     key = os.environ.get("ANTHROPIC_API_KEY")
     if not key:
         raise RuntimeError("ANTHROPIC_API_KEY is not set")
-    return anthropic.Anthropic(api_key=key)
+    # LibreSSL / macOS CLT Python: explicit SSLContext + certifi or truststore (3.10+).
+    ctx = _ssl_context_for_anthropic()
+    timeout = httpx.Timeout(600.0, connect=120.0)
+    http = httpx.Client(verify=ctx, timeout=timeout)
+    ca_h = os.environ.get("SSL_CERT_FILE", "").strip() or certifi.where()
+    logger.info("anthropic_http_client_initialized", extra={"ssl_ca_hint": ca_h})
+    return anthropic.Anthropic(api_key=key, http_client=http)
 
 
 def _serialize_content_blocks(content: object) -> object:
@@ -261,7 +305,11 @@ def call_claude(
                 last_err = e
                 logger.warning(
                     "claude_call_failed",
-                    extra={"attempt": attempt + 1, "error": str(e)},
+                    extra={
+                        "attempt": attempt + 1,
+                        "error": str(e),
+                        "error_chain": _exception_chain(e),
+                    },
                 )
                 if attempt < max_retries - 1:
                     time.sleep(delays[min(attempt, len(delays) - 1)])
@@ -289,7 +337,11 @@ def call_claude(
             last_err = e
             logger.warning(
                 "claude_call_failed",
-                extra={"attempt": attempt + 1, "error": str(e)},
+                extra={
+                    "attempt": attempt + 1,
+                    "error": str(e),
+                    "error_chain": _exception_chain(e),
+                },
             )
             if attempt < max_retries - 1:
                 time.sleep(delays[min(attempt, len(delays) - 1)])

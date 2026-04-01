@@ -98,19 +98,8 @@ export async function getTrades(page: number, limit: number, ticker?: string) {
   });
 }
 
-/** Trade journal: one row per position (open + closed), entry/exit notionals and P&L. */
-export async function getPositionJournal(page: number, limit: number, ticker?: string) {
-  const empty = { rows: [] as Record<string, unknown>[], total: 0, page, limit };
-  return withData(empty, (db) => {
-    const offset = (page - 1) * limit;
-    const like = ticker ? `%${ticker}%` : null;
-    const baseWhere = like ? "WHERE ticker LIKE ?" : "";
-    const total = (
-      like
-        ? db.prepare(`SELECT COUNT(*) as c FROM positions ${baseWhere}`).get(like)
-        : db.prepare(`SELECT COUNT(*) as c FROM positions`).get()
-    ) as { c: number };
-    const sql = `
+/** Shared SELECT for trade journal rows (one row per position). */
+const POSITION_JOURNAL_SELECT = `
       SELECT
         id,
         ticker,
@@ -141,7 +130,22 @@ export async function getPositionJournal(page: number, limit: number, ticker?: s
           WHEN status = 'OPEN' THEN unrealized_pnl
           ELSE NULL
         END AS unrealized_pnl
-      FROM positions
+      FROM positions`;
+
+/** Trade journal: one row per position (open + closed), entry/exit notionals and P&L. */
+export async function getPositionJournal(page: number, limit: number, ticker?: string) {
+  const empty = { rows: [] as Record<string, unknown>[], total: 0, page, limit };
+  return withData(empty, (db) => {
+    const offset = (page - 1) * limit;
+    const like = ticker ? `%${ticker}%` : null;
+    const baseWhere = like ? "WHERE ticker LIKE ?" : "";
+    const total = (
+      like
+        ? db.prepare(`SELECT COUNT(*) as c FROM positions ${baseWhere}`).get(like)
+        : db.prepare(`SELECT COUNT(*) as c FROM positions`).get()
+    ) as { c: number };
+    const sql = `
+      ${POSITION_JOURNAL_SELECT}
       ${baseWhere}
       ORDER BY
         CASE WHEN status = 'OPEN' THEN 0 ELSE 1 END,
@@ -153,6 +157,69 @@ export async function getPositionJournal(page: number, limit: number, ticker?: s
       ? (db.prepare(sql).all(like, limit, offset) as Record<string, unknown>[])
       : (db.prepare(sql).all(limit, offset) as Record<string, unknown>[]);
     return { rows, total: total.c, page, limit };
+  });
+}
+
+export type TradesJournalData = {
+  open: Record<string, unknown>[];
+  closed: Record<string, unknown>[];
+  closedTotal: number;
+  closedPage: number;
+  closedLimit: number;
+  dbUnavailable: boolean;
+};
+
+/** Open positions (all) + paginated closed, for /trades UI. Sorted by entry_date desc within queries. */
+export async function getTradesJournalData(
+  closedPage: number,
+  closedLimit: number,
+  ticker?: string,
+): Promise<TradesJournalData> {
+  const empty: TradesJournalData = {
+    open: [],
+    closed: [],
+    closedTotal: 0,
+    closedPage: Math.max(1, closedPage),
+    closedLimit: Math.max(1, closedLimit),
+    dbUnavailable: true,
+  };
+  return withData(empty, (db) => {
+    const page = Math.max(1, closedPage);
+    const limit = Math.max(1, closedLimit);
+    const offset = (page - 1) * limit;
+    const like = ticker ? `%${ticker}%` : null;
+
+    const openSql = `
+      ${POSITION_JOURNAL_SELECT}
+      WHERE status = 'OPEN'${like ? " AND ticker LIKE ?" : ""}
+      ORDER BY entry_date DESC, ticker ASC`;
+    const open = like
+      ? (db.prepare(openSql).all(like) as Record<string, unknown>[])
+      : (db.prepare(openSql).all() as Record<string, unknown>[]);
+
+    const closedCountSql = `SELECT COUNT(*) as c FROM positions WHERE status = 'CLOSED'${like ? " AND ticker LIKE ?" : ""}`;
+    const closedTotalRow = like
+      ? (db.prepare(closedCountSql).get(like) as { c: number })
+      : (db.prepare(closedCountSql).get() as { c: number });
+
+    const closedSql = `
+      ${POSITION_JOURNAL_SELECT}
+      WHERE status = 'CLOSED'${like ? " AND ticker LIKE ?" : ""}
+      ORDER BY entry_date DESC, exit_date DESC, id DESC
+      LIMIT ?
+      OFFSET ?`;
+    const closed = like
+      ? (db.prepare(closedSql).all(like, limit, offset) as Record<string, unknown>[])
+      : (db.prepare(closedSql).all(limit, offset) as Record<string, unknown>[]);
+
+    return {
+      open,
+      closed,
+      closedTotal: closedTotalRow.c,
+      closedPage: page,
+      closedLimit: limit,
+      dbUnavailable: false,
+    };
   });
 }
 
