@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { getTradesJournalData } from "@/lib/data";
+import { entryNotionalCalculation } from "@/lib/entryNotionalCalc";
+import { formatPositionQuantity } from "@/lib/formatQuantity";
 import { getInstrumentDisplayName } from "@/lib/instruments";
 
 export const dynamic = "force-dynamic";
@@ -45,7 +47,7 @@ function TradeTable({
   }
 
   return (
-    <table className="w-full text-left text-sm min-w-[1080px]">
+    <table className="w-full text-left text-sm min-w-[1180px]">
       <thead>
         <tr className="text-[var(--muted)] text-xs uppercase border-b border-[var(--border)]">
           <th className="p-3 min-w-[160px]">Ticker / name</th>
@@ -105,6 +107,14 @@ function TradeRow({ r, showExitCols }: { r: Record<string, unknown>; showExitCol
   const upnl = r.unrealized_pnl != null ? Number(r.unrealized_pnl) : null;
   const tk = String(r.ticker);
   const dn = getInstrumentDisplayName(tk);
+  const instType = String(r.instrument_type ?? "etf");
+  const entryNcalc = entryNotionalCalculation(
+    tk,
+    instType,
+    Number(r.quantity),
+    Number(r.entry_price),
+    Number(r.entry_notional_usd),
+  );
   const pnlDisplay = open
     ? upnl != null
       ? `${upnl >= 0 ? "+" : ""}${fmtMoney(upnl)}`
@@ -122,10 +132,16 @@ function TradeRow({ r, showExitCols }: { r: Record<string, unknown>; showExitCol
         )}
       </td>
       <td className="p-3 text-xs">{String(r.direction)}</td>
-      <td className="p-3 font-mono text-right">{Number(r.quantity).toPrecision(4)}</td>
+      <td className="p-3 font-mono text-right">{formatPositionQuantity(Number(r.quantity))}</td>
       <td className="p-3 font-mono text-xs whitespace-nowrap">{String(r.entry_date)}</td>
       <td className="p-3 font-mono text-right">{fmtPrice(Number(r.entry_price))}</td>
-      <td className="p-3 font-mono text-right">{fmtMoney(Number(r.entry_notional_usd))}</td>
+      <td className="p-3 text-right align-top max-w-[300px]">
+        <div className="font-mono">{fmtMoney(Number(r.entry_notional_usd))}</div>
+        <div className="text-[10px] text-[var(--muted)] mt-1.5 font-sans leading-snug text-left">
+          <span className="font-mono break-all">{entryNcalc.formula}</span>
+          {entryNcalc.note && <div className="mt-1 opacity-95">{entryNcalc.note}</div>}
+        </div>
+      </td>
       {showExitCols && (
         <>
           <td className="p-3 font-mono text-xs whitespace-nowrap">
@@ -182,6 +198,11 @@ export default async function TradesPage({
         <p className="text-[var(--muted)] text-sm mt-1">
           Open and closed positions in separate sections. Each block is grouped by <strong>entry session</strong>{" "}
           (trade <code className="text-xs font-mono">entry_date</code>), newest sessions first.
+        </p>
+        <p className="text-[var(--muted)] text-xs mt-2 max-w-3xl">
+          Each row shows the <strong className="text-[var(--text)]">notional math</strong> under the entry-notional
+          figure (multipliers from <code className="font-mono">config/instruments.yaml</code>; fill price includes
+          slippage per <code className="font-mono">settings.yaml</code>).
         </p>
       </div>
 

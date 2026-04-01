@@ -1,4 +1,6 @@
+import { entryNotionalCalculation } from "@/lib/entryNotionalCalc";
 import { getPositionsPageData } from "@/lib/data";
+import { formatPositionQuantity } from "@/lib/formatQuantity";
 import { getInstrumentDisplayName } from "@/lib/instruments";
 
 export const dynamic = "force-dynamic";
@@ -63,6 +65,7 @@ export default async function PositionsPage({
               <th className="pb-2">Dir</th>
               <th className="pb-2 text-right">Qty</th>
               <th className="pb-2 text-right">Entry</th>
+              <th className="pb-2 text-right min-w-[200px]">Entry notional</th>
               <th className="pb-2 text-right">Last</th>
               <th className="pb-2 text-right">U-P&amp;L</th>
               <th className="pb-2 text-right">% NAV</th>
@@ -76,6 +79,14 @@ export default async function PositionsPage({
               const up = p.unrealized_pnl as number | null;
               const tk = String(p.ticker);
               const dn = getInstrumentDisplayName(tk);
+              const ncalc = entryNotionalCalculation(
+                tk,
+                String(p.instrument_type ?? "etf"),
+                Number(p.quantity),
+                Number(p.entry_price),
+                Number(p.notional_value) || 0,
+              );
+              const nv = Number(p.notional_value);
               return (
                 <tr key={String(p.id)} className="border-t border-[var(--border)]">
                   <td className="py-2 pr-3">
@@ -89,9 +100,18 @@ export default async function PositionsPage({
                   <td className="py-2 pr-3">{String(p.asset_class)}</td>
                   <td className="py-2 pr-3">{String(p.direction)}</td>
                   <td className="py-2 pr-3 font-mono text-right">
-                    {Number(p.quantity).toPrecision(4)}
+                    {formatPositionQuantity(Number(p.quantity))}
                   </td>
                   <td className="py-2 pr-3 font-mono text-right">{Number(p.entry_price).toFixed(2)}</td>
+                  <td className="py-2 pr-3 text-right align-top max-w-[280px]">
+                    <div className="font-mono">
+                      {Number.isFinite(nv) ? nv.toLocaleString(undefined, { style: "currency", currency: "USD", maximumFractionDigits: 0 }) : "—"}
+                    </div>
+                    <div className="text-[10px] text-[var(--muted)] mt-1 font-sans leading-snug text-left">
+                      <span className="font-mono break-all">{ncalc.formula}</span>
+                      {ncalc.note && <div className="mt-1">{ncalc.note}</div>}
+                    </div>
+                  </td>
                   <td className="py-2 pr-3 font-mono text-right">
                     {p.current_price != null ? Number(p.current_price).toFixed(2) : "—"}
                   </td>
@@ -152,7 +172,7 @@ export default async function PositionsPage({
                     </td>
                     <td className="py-2">{String(p.asset_class)}</td>
                     <td className="py-2">{String(p.direction)}</td>
-                    <td className="py-2 font-mono text-right">{Number(p.quantity).toPrecision(4)}</td>
+                    <td className="py-2 font-mono text-right">{formatPositionQuantity(Number(p.quantity))}</td>
                     <td className="py-2 font-mono text-right">{Number(p.entry_price).toFixed(2)}</td>
                     <td className="py-2 font-mono text-right">
                       {p.exit_price != null ? Number(p.exit_price).toFixed(2) : "—"}
