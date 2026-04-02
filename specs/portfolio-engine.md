@@ -20,7 +20,7 @@ For options:
 ```
 
 ## Position Lifecycle
-1. **Open**: Claude sends OrderIntent → Simulator fills → Position created in DB
+1. **Open / add**: Claude sends OrderIntent → Simulator fills → new **OPEN** row **or** incremental **BUY**/**SHORT** into an existing open leg (same ticker, direction, and instrument identity; VWAP entry, one row).
 2. **Daily Update**: Current prices fetched → unrealized P&L recalculated
 3. **Stop/TP Check**: Before Claude runs, check all positions against stops and take-profits
 4. **Close**: Either Claude requests close, or stop/TP triggers → realized P&L calculated, status → CLOSED

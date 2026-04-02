@@ -4,8 +4,11 @@ import path from "path";
 import { DASHBOARD_BLOB_PATHNAME } from "./dashboard-blob";
 
 let _db: Database.Database | null = null;
-/** `uploadedAt` from Blob (ms), or 0 for local file */
-let _dbSourceTime = 0;
+/**
+ * Cache invalidation: `"local"` for filesystem DB; `blob:<ms>:<size>` for Vercel Blob
+ * (timestamp alone can miss overwrites; size changes when SQLite snapshot changes).
+ */
+let _dbCacheKey = "";
 
 /** Resolved path for error messages and local dev. */
 export function resolveDbPath(): string {
@@ -23,7 +26,7 @@ function closeDb(): void {
       /* ignore */
     }
     _db = null;
-    _dbSourceTime = 0;
+    _dbCacheKey = "";
   }
 }
 
@@ -49,11 +52,13 @@ async function openFromBlob(): Promise<Database.Database> {
     );
   }
   const uploadedMs = new Date(match.uploadedAt).getTime();
-  if (_db && _dbSourceTime >= uploadedMs) {
+  const blobKey = `blob:${uploadedMs}:${match.size}`;
+  if (_db && _dbCacheKey === blobKey) {
     return _db;
   }
   closeDb();
   const res = await fetch(match.downloadUrl, {
+    cache: "no-store",
     headers: { Authorization: `Bearer ${token}` },
   });
   if (!res.ok) {
@@ -63,7 +68,7 @@ async function openFromBlob(): Promise<Database.Database> {
   const tmp = path.join("/tmp", "trading_bot_vercel.db");
   fs.writeFileSync(tmp, buf);
   _db = new Database(tmp, { readonly: true, fileMustExist: true });
-  _dbSourceTime = uploadedMs;
+  _dbCacheKey = blobKey;
   return _db;
 }
 
@@ -75,23 +80,46 @@ function openLocalFile(dbPath: string): Database.Database {
   }
   closeDb();
   _db = new Database(dbPath, { readonly: true, fileMustExist: true });
-  _dbSourceTime = 0;
+  _dbCacheKey = `local:${fs.statSync(dbPath).mtimeMs}`;
   return _db;
 }
 
 /**
  * Open read-only DB: local file if DATABASE_PATH or default path exists;
  * otherwise latest SQLite from Vercel Blob when BLOB_READ_WRITE_TOKEN is set.
+ *
+ * On Vercel (`VERCEL=1`), always use Blob when `BLOB_READ_WRITE_TOKEN` is set.
+ * Never resolve `../storage/trading_bot.db` from `process.cwd()` there — monorepo /
+ * serverless cwd can make that path spuriously exist or point at the wrong file,
+ * skipping Blob entirely.
  */
 export async function getDbAsync(): Promise<Database.Database> {
+  const onVercel = Boolean(process.env.VERCEL);
   const explicit = process.env.DATABASE_PATH;
   const localPath = explicit || resolveDbPath();
+
+  if (onVercel) {
+    if (process.env.BLOB_READ_WRITE_TOKEN) {
+      return openFromBlob();
+    }
+    if (explicit && fs.existsSync(explicit)) {
+      const localKey = `local:${fs.statSync(explicit).mtimeMs}`;
+      if (_db && _dbCacheKey === localKey) return _db;
+      return openLocalFile(explicit);
+    }
+    throw new Error(
+      "No database on Vercel: set BLOB_READ_WRITE_TOKEN and sync from the bot, or set DATABASE_PATH to a readable file in the deployment.",
+    );
+  }
+
   if (explicit && fs.existsSync(explicit)) {
-    if (_db && _dbSourceTime === 0) return _db;
+    const localKey = `local:${fs.statSync(explicit).mtimeMs}`;
+    if (_db && _dbCacheKey === localKey) return _db;
     return openLocalFile(explicit);
   }
   if (!explicit && fs.existsSync(localPath)) {
-    if (_db && _dbSourceTime === 0) return _db;
+    const localKey = `local:${fs.statSync(localPath).mtimeMs}`;
+    if (_db && _dbCacheKey === localKey) return _db;
     return openLocalFile(localPath);
   }
   if (process.env.BLOB_READ_WRITE_TOKEN) {

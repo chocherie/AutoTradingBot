@@ -60,6 +60,43 @@ def test_open_future_update_stop(tmp_db):
     assert port.find_open_position("ES=F") is None
 
 
+def test_second_buy_same_future_merges_into_one_open_row(tmp_db):
+    """Regression: two BUY intents same day must not create duplicate OPEN positions."""
+    port = Portfolio()
+    port.load_state()
+    prices = {"BZ=F": 100.0}
+    sim = PaperSimulator()
+    o1 = OrderIntent(
+        ticker="BZ=F",
+        action="BUY",
+        size_pct_nav=2.0,
+        stop_loss_pct=2.0,
+        take_profit_pct=4.0,
+        rationale="add 1",
+        signal_source="test",
+    )
+    ok, msg, ids1 = sim.execute_intent(port, o1, prices, trade_date="2026-04-01")
+    assert ok, msg
+    leg1 = port.find_open_position("BZ=F", long_side=True)
+    assert leg1 is not None
+    q1 = leg1.quantity
+    o2 = OrderIntent(
+        ticker="BZ=F",
+        action="BUY",
+        size_pct_nav=2.0,
+        stop_loss_pct=2.0,
+        take_profit_pct=4.0,
+        rationale="add 2",
+        signal_source="test",
+    )
+    ok2, msg2, ids2 = sim.execute_intent(port, o2, prices, trade_date="2026-04-01")
+    assert ok2, msg2
+    open_bz = [p for p in port.get_open_positions() if p.ticker == "BZ=F"]
+    assert len(open_bz) == 1
+    assert ids2 == ids1
+    assert open_bz[0].quantity > q1 + 1e-6
+
+
 def test_min_hold_same_session_day_blocks_close(tmp_db):
     port = Portfolio()
     port.load_state()

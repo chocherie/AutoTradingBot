@@ -52,6 +52,16 @@ class PaperSimulator:
     ) -> Tuple[bool, str, List[int]]:
         """Validate, fill, persist. Returns (ok, message, affected_position_ids)."""
         registry = registry or build_registry()
+        merge_into: Optional[Position] = None
+        if order.action == "BUY":
+            cand = portfolio.find_open_position(order.ticker, long_side=True)
+            if cand is not None and risk.positions_can_merge(cand, order):
+                merge_into = cand
+        elif order.action == "SHORT":
+            cand = portfolio.find_open_position(order.ticker, long_side=False)
+            if cand is not None and risk.positions_can_merge(cand, order):
+                merge_into = cand
+
         ok, reason = risk.validate_order(
             order,
             portfolio,
@@ -59,6 +69,7 @@ class PaperSimulator:
             as_of=trade_date,
             registry=registry,
             settings=self.settings,
+            merge_into=merge_into,
         )
         if not ok:
             return False, reason, []
@@ -108,6 +119,38 @@ class PaperSimulator:
 
         entry_raw = prem if prem is not None else ref
         entry = self._fill_price(entry_raw, order.action)
+
+        if merge_into is not None:
+            if merge_into.id is None:
+                return False, "merge_into missing id", []
+            combined_q = merge_into.quantity + qty
+            comb_entry = (
+                merge_into.quantity * merge_into.entry_price + qty * entry
+            ) / combined_q
+            stop_px, tp_px = risk.absolute_stops(
+                entry=comb_entry,
+                action=order.action,
+                stop_loss_pct=order.stop_loss_pct,
+                take_profit_pct=order.take_profit_pct,
+            )
+            comm = self._commission(merge_into.instrument_type, qty)
+            pid = portfolio.merge_add_to_open(
+                merge_into.id,
+                qty,
+                entry,
+                trade_date,
+                comm,
+                self.slippage_bps,
+                order.action,
+                order.rationale,
+                prices,
+                new_stop_loss=float(stop_px),
+                new_take_profit=float(tp_px),
+                confidence=order.confidence,
+                signal_source=order.signal_source,
+            )
+            return True, "", [pid]
+
         stop_px, tp_px = risk.absolute_stops(
             entry=entry,
             action=order.action,

@@ -13,7 +13,7 @@ src/brain/         → Claude integration: prompt building, API calls, response 
 src/journal/       → Trade journal and performance metrics (Sharpe, drawdown, etc.)
 src/main.py        → Daily cycle: `python -m src.main` (`--date`, `--skip-claude`)
 config/            → instruments.yaml (universe), settings.yaml (`trading.options_enabled`, risk, Claude, …)
-web/               → Next.js 14 dashboard; local `DATABASE_PATH` or Vercel Blob (`BLOB_READ_WRITE_TOKEN`); `src.main` can POST DB via `DASHBOARD_DB_SYNC_*` → `/api/admin/sync-db`
+web/               → Next.js 14 dashboard; local `DATABASE_PATH` or Vercel Blob (`BLOB_READ_WRITE_TOKEN`); blob/local DB open paths in `web/lib/db.ts` (cache invalidation); `src.main` POST via `DASHBOARD_DB_SYNC_*` → `/api/admin/sync-db` (upload uses SQLite backup for a consistent snapshot)
 storage/           → SQLite database + logs (created at runtime, gitignored)
 specs/             → System and module specifications (source of truth for design)
 docs/              → Architecture, quality scorecard, core beliefs
@@ -64,8 +64,21 @@ Collect Data → Check Stops/TPs → Build Prompt → Call Claude → Execute Or
 - `src/brain/prompt_builder.py` — How data is presented to Claude determines trade quality
 - `src/brain/response_parser.py` — Must handle malformed JSON robustly
 - `src/portfolio/portfolio.py` — Source of truth for NAV, positions, P&L
+- `src/utils/dashboard_sync.py` — Optional POST of `trading_bot.db` to the dashboard; snapshot via SQLite `backup()` (WAL-safe)
+- `web/lib/db.ts` — Opens local SQLite or downloads newest Vercel Blob; caching keyed by blob `uploadedAt` + `size`, local invalidation by file `mtime`
 - `config/instruments.yaml` — Drives data collection, margin calc, and prompt content
 - `config/settings.yaml` — All tunable parameters in one place
 
 ## Database
 SQLite at `storage/trading_bot.db`. Tables: `portfolio_snapshots`, `positions`, `trades`, `daily_analysis`, `data_cache`.
+
+## Learned User Preferences
+- Expect the hosted dashboard to reflect the latest bot run after a fresh blob upload and a deployed `web/` revision that matches the repo.
+- Treat “Vercel not updated” as often a Git/deploy gap (unpushed commits or no new deployment), not only a sync failure.
+
+## Learned Workspace Facts
+- The Python bot does not run on Vercel; production is read-only Next.js over Blob. The bot runs locally (or another host), updates `storage/trading_bot.db`, then optionally POSTs to `/api/admin/sync-db` with `DASHBOARD_DB_SYNC_URL` and `DASHBOARD_DB_SYNC_SECRET` matching Vercel `DB_UPLOAD_SECRET`.
+- Dashboard DB upload uses SQLite `backup()` in `dashboard_sync.py` so WAL mode cannot produce a stale copy from the main `.db` file alone.
+- `web/lib/db.ts` uses a composite blob cache key (`uploadedAt` + `size`), `fetch` with `cache: "no-store"`, and local-file reopen when `mtime` changes so warm serverless or local dev does not serve an old DB.
+- Vercel project: Root Directory `web`; env vars `BLOB_READ_WRITE_TOKEN`, `DB_UPLOAD_SECRET` (and any others) must be set for Production; redeploy after env changes.
+- CLI deploy from `web/`: e.g. `npx vercel deploy --prod`; may create `web/.vercel` (often gitignored). Git-connected projects also deploy on push to the linked branch.

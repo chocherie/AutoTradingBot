@@ -39,7 +39,7 @@ Collects market prices (yfinance), economic indicators (FRED), and news sentimen
 **Modules**: `instrument_registry.py` (YAML → `InstrumentMeta`), `position.py`, `margin.py`, `risk.py` (`validate_order`, heat, circuit helpers), `portfolio.py` (`Portfolio` + SQLite tables: `portfolio_meta`, `positions`, `trades`, `portfolio_snapshots`). Futures use **fractional contracts** in paper mode so position sizing can respect % NAV limits at $1M capital.
 
 ### `src/execution/` — Paper Execution
-**Modules**: `order.py` (`OrderIntent`), `simulator.py` (`PaperSimulator.execute_intent`).
+**Modules**: `order.py` (`OrderIntent`), `simulator.py` (`PaperSimulator.execute_intent` — incremental BUY/SHORT merges into the same open leg with VWAP entry when ticker/direction/instrument match).
 
 ### `src/brain/` — Claude
 **Modules**: `claude_client.py` (system prompt + `call_claude` + cost estimate), `prompt_builder.py` (4 sections), `response_parser.py` (`ClaudeDecision`, `parse_claude_response`, `orders_to_intents`). Package `__init__` stays light — import submodules directly to avoid loading Anthropic until needed.
@@ -51,7 +51,7 @@ Collects market prices (yfinance), economic indicators (FRED), and news sentimen
 Orchestrates: data fetch → price update → stop/TP + circuit halt → prompt → Claude → `daily_analysis` + orders → `portfolio_snapshots`.
 
 ### `web/` — Dashboard
-Next.js App Router, Tailwind, Recharts; `lib/db.ts` + `lib/data.ts` read SQLite (read-only). Override DB path with `DATABASE_PATH`. On Vercel, `getDbAsync` can pull the latest copy from **Vercel Blob** (`BLOB_READ_WRITE_TOKEN`); `src/utils/dashboard_sync.py` + `POST /api/admin/sync-db` upload after each `src.main` run when `DASHBOARD_DB_SYNC_*` is set. API routes under `app/api/*`.
+Next.js App Router, Tailwind, Recharts; `lib/db.ts` + `lib/data.ts` read SQLite (read-only). Override DB path with `DATABASE_PATH`. On Vercel, `getDbAsync` can pull the latest copy from **Vercel Blob** (`BLOB_READ_WRITE_TOKEN`), re-fetching when blob `uploadedAt` or `size` changes; `src/utils/dashboard_sync.py` snapshots the DB via SQLite `backup()` (WAL-safe) then `POST /api/admin/sync-db` after each `src.main` run when `DASHBOARD_DB_SYNC_*` is set. API routes under `app/api/*`.
 
 ### `scripts/run_daily.sh`
 Sets `PYTHONPATH` and runs `python3 -m src.main`.

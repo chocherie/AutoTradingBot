@@ -566,6 +566,123 @@ class Portfolio:
         self._persist_meta()
         return pid
 
+    def merge_add_to_open(
+        self,
+        position_id: int,
+        add_quantity: float,
+        add_entry_price: float,
+        trade_date: str,
+        commission: float,
+        slippage_bps: float,
+        action: str,
+        rationale: str,
+        prices: Dict[str, float],
+        *,
+        new_stop_loss: float,
+        new_take_profit: float,
+        confidence: Optional[str] = None,
+        signal_source: Optional[str] = None,
+    ) -> int:
+        """Increase size of an open leg (VWAP entry). Opening cash impact is incremental only."""
+        target = next(
+            (p for p in self._positions if p.id == position_id and p.status == "OPEN"),
+            None,
+        )
+        if target is None:
+            raise ValueError(f"No open position id={position_id}")
+
+        reg = build_registry()
+        meta = reg.get(target.ticker)
+        if meta is None:
+            raise ValueError(f"Unknown ticker {target.ticker}")
+
+        old_q = target.quantity
+        old_px = target.entry_price
+        new_q = old_q + add_quantity
+        new_entry = (old_q * old_px + add_quantity * add_entry_price) / new_q
+
+        fx = resolve_fx_to_usd(meta, prices)
+        opening_cash_delta = -commission
+        if target.instrument_type == "future":
+            pass
+        elif target.instrument_type == "option":
+            om = meta.option_contract_multiplier or 100.0
+            if target.direction == "LONG":
+                opening_cash_delta -= add_entry_price * add_quantity * om
+            else:
+                opening_cash_delta += add_entry_price * add_quantity * om
+        else:
+            if target.direction == "LONG":
+                opening_cash_delta -= add_entry_price * add_quantity * fx
+            else:
+                opening_cash_delta += add_entry_price * add_quantity * fx
+
+        self._cash += opening_cash_delta
+
+        target.quantity = new_q
+        target.entry_price = new_entry
+        target.stop_loss = new_stop_loss
+        target.take_profit = new_take_profit
+        u_px = float(prices.get(target.ticker, add_entry_price))
+        target.margin_required = margin_required_usd(meta, target, u_px)
+        if target.instrument_type == "future":
+            target.notional_value = abs(new_q * new_entry * meta.multiplier)
+        elif target.instrument_type == "option":
+            om = meta.option_contract_multiplier or 100.0
+            target.notional_value = abs(new_q * new_entry * om)
+        else:
+            target.notional_value = abs(new_q * new_entry * fx)
+
+        mark = prices.get(target.ticker)
+        if mark is not None:
+            target.current_price = float(mark)
+            target.unrealized_pnl = target.unrealized_from_prices(meta, prices)
+
+        with self._conn() as conn:
+            conn.execute(
+                """UPDATE positions SET quantity=?, entry_price=?, current_price=?,
+                unrealized_pnl=?, stop_loss=?, take_profit=?,
+                margin_required=?, notional_value=?, entry_notional_usd=?
+                WHERE id=? AND status='OPEN'""",
+                (
+                    target.quantity,
+                    target.entry_price,
+                    target.current_price,
+                    target.unrealized_pnl,
+                    target.stop_loss,
+                    target.take_profit,
+                    target.margin_required,
+                    target.notional_value,
+                    target.notional_value,
+                    position_id,
+                ),
+            )
+            conn.execute(
+                """INSERT INTO trades (position_id, ticker, instrument_type, action,
+                quantity, price, commission, slippage_bps, trade_date, rationale, exit_reason,
+                confidence, signal_source)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                (
+                    position_id,
+                    target.ticker,
+                    target.instrument_type,
+                    action,
+                    add_quantity,
+                    add_entry_price,
+                    commission,
+                    slippage_bps,
+                    trade_date,
+                    rationale,
+                    "",
+                    confidence,
+                    signal_source,
+                ),
+            )
+            conn.commit()
+
+        self._persist_meta()
+        return position_id
+
     def to_summary_dict(self, prices: Dict[str, float]) -> dict:
         nav = self.get_nav(prices)
         return {

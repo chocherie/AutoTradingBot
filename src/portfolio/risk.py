@@ -69,6 +69,32 @@ def portfolio_heat_pct(portfolio: Portfolio, prices: Dict[str, float]) -> float:
     return (total / nav) * 100.0
 
 
+def positions_can_merge(existing: Position, order: OrderIntent) -> bool:
+    """True if an incremental BUY/SHORT should add to `existing` instead of opening a second row."""
+    if order.action == "BUY" and existing.direction != "LONG":
+        return False
+    if order.action == "SHORT" and existing.direction != "SHORT":
+        return False
+    if order.ticker != existing.ticker:
+        return False
+    if order.option_details:
+        if existing.instrument_type != "option":
+            return False
+        od = order.option_details
+        if existing.strike is None or existing.expiry is None or not existing.option_type:
+            return False
+        if float(od["strike"]) != float(existing.strike):
+            return False
+        if str(od["expiry"]) != str(existing.expiry):
+            return False
+        if od.get("option_type") != existing.option_type:
+            return False
+        return True
+    if existing.instrument_type == "option":
+        return False
+    return True
+
+
 def positions_by_asset_class(portfolio: Portfolio) -> Dict[str, int]:
     counts: Dict[str, int] = {}
     for p in portfolio.get_open_positions():
@@ -84,8 +110,13 @@ def validate_order(
     as_of: Optional[str] = None,
     registry: Optional[Dict[str, InstrumentMeta]] = None,
     settings: Optional[dict] = None,
+    merge_into: Optional[Position] = None,
 ) -> Tuple[bool, str]:
-    """Pre-trade checks. Returns (ok, reason)."""
+    """Pre-trade checks. Returns (ok, reason).
+
+    If ``merge_into`` is set, limits are checked against the combined leg (existing + add)
+    instead of the add alone (pyramiding into the same open position).
+    """
     settings = settings or load_settings()
     registry = registry or build_registry()
     risk = settings.get("risk", {})
@@ -155,15 +186,6 @@ def validate_order(
         return False, "Zero quantity after sizing"
 
     entry_guess = prem if prem is not None else ref
-    try:
-        stop_px, tp_px = absolute_stops(
-            entry=entry_guess,
-            action=order.action,
-            stop_loss_pct=order.stop_loss_pct,
-            take_profit_pct=order.take_profit_pct,
-        )
-    except ValueError as e:
-        return False, str(e)
 
     direction = "LONG" if order.action == "BUY" else "SHORT"
     asset_class = meta.asset_class
@@ -172,29 +194,81 @@ def validate_order(
     if order.option_details:
         instrument_type_row = "option"
 
-    proposed = Position(
-        id=None,
-        ticker=order.ticker,
-        asset_class=asset_class,
-        instrument_type=instrument_type_row,
-        direction=direction,
-        quantity=qty,
-        entry_price=entry_guess,
-        entry_date="",
-        current_price=entry_guess,
-        unrealized_pnl=0.0,
-        stop_loss=stop_px,
-        take_profit=tp_px,
-        status="OPEN",
-        exit_price=None,
-        exit_date=None,
-        realized_pnl=None,
-        margin_required=0.0,
-        notional_value=0.0,
-        option_type=order.option_details.get("option_type") if order.option_details else None,
-        strike=float(order.option_details["strike"]) if order.option_details else None,
-        expiry=str(order.option_details["expiry"]) if order.option_details else None,
-    )
+    if merge_into is not None:
+        if merge_into.id is None:
+            return False, "merge_into position must be persisted"
+        if not positions_can_merge(merge_into, order):
+            return False, "Order is not eligible to merge into existing position"
+        comb_qty = merge_into.quantity + qty
+        comb_entry = (
+            merge_into.quantity * merge_into.entry_price + qty * entry_guess
+        ) / comb_qty
+        try:
+            stop_px, tp_px = absolute_stops(
+                entry=comb_entry,
+                action=order.action,
+                stop_loss_pct=order.stop_loss_pct,
+                take_profit_pct=order.take_profit_pct,
+            )
+        except ValueError as e:
+            return False, str(e)
+        proposed = Position(
+            id=None,
+            ticker=order.ticker,
+            asset_class=asset_class,
+            instrument_type=instrument_type_row,
+            direction=direction,
+            quantity=comb_qty,
+            entry_price=comb_entry,
+            entry_date="",
+            current_price=comb_entry,
+            unrealized_pnl=0.0,
+            stop_loss=stop_px,
+            take_profit=tp_px,
+            status="OPEN",
+            exit_price=None,
+            exit_date=None,
+            realized_pnl=None,
+            margin_required=0.0,
+            notional_value=0.0,
+            option_type=merge_into.option_type,
+            strike=merge_into.strike,
+            expiry=merge_into.expiry,
+        )
+    else:
+        try:
+            stop_px, tp_px = absolute_stops(
+                entry=entry_guess,
+                action=order.action,
+                stop_loss_pct=order.stop_loss_pct,
+                take_profit_pct=order.take_profit_pct,
+            )
+        except ValueError as e:
+            return False, str(e)
+
+        proposed = Position(
+            id=None,
+            ticker=order.ticker,
+            asset_class=asset_class,
+            instrument_type=instrument_type_row,
+            direction=direction,
+            quantity=qty,
+            entry_price=entry_guess,
+            entry_date="",
+            current_price=entry_guess,
+            unrealized_pnl=0.0,
+            stop_loss=stop_px,
+            take_profit=tp_px,
+            status="OPEN",
+            exit_price=None,
+            exit_date=None,
+            realized_pnl=None,
+            margin_required=0.0,
+            notional_value=0.0,
+            option_type=order.option_details.get("option_type") if order.option_details else None,
+            strike=float(order.option_details["strike"]) if order.option_details else None,
+            expiry=str(order.option_details["expiry"]) if order.option_details else None,
+        )
 
     fx = resolve_fx_to_usd(meta, prices)
     if instrument_type_row == "future":

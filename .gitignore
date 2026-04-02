@@ -18,6 +18,7 @@ env/
 storage/
 
 # IDE
+.cursor/hooks/state/
 .vscode/
 .idea/
 *.swp
@@ -34,3 +35,4 @@ web/out/
 
 # Logs
 *.log
+.vercel

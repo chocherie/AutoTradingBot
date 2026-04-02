@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 import os
-import shutil
+import sqlite3
 import tempfile
 import urllib.error
 import urllib.request
@@ -14,6 +14,32 @@ from src.utils.config import load_settings
 from src.utils.paths import project_root
 
 logger = logging.getLogger(__name__)
+
+
+def _sqlite_snapshot_bytes(db_path: Path) -> bytes | None:
+    """
+    Snapshot the DB via SQLite backup API so uploads include WAL-committed state.
+    Copying only the main .db file can upload stale data while journal_mode=WAL.
+    """
+    try:
+        with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as tmp:
+            tmp_path = Path(tmp.name)
+        try:
+            src = sqlite3.connect(str(db_path))
+            try:
+                dst = sqlite3.connect(str(tmp_path))
+                try:
+                    src.backup(dst)
+                finally:
+                    dst.close()
+            finally:
+                src.close()
+            return tmp_path.read_bytes()
+        finally:
+            tmp_path.unlink(missing_ok=True)
+    except (OSError, sqlite3.Error) as e:
+        logger.warning("dashboard_sync_sqlite_backup_failed", extra={"error": str(e)})
+        return None
 
 
 def maybe_sync_dashboard_db() -> None:
@@ -36,17 +62,8 @@ def maybe_sync_dashboard_db() -> None:
         )
         return
 
-    # Copy to a temp file so we never upload while WAL has the main file busy
-    try:
-        with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as tmp:
-            tmp_path = Path(tmp.name)
-        try:
-            shutil.copy2(db_path, tmp_path)
-            data = tmp_path.read_bytes()
-        finally:
-            tmp_path.unlink(missing_ok=True)
-    except OSError as e:
-        logger.warning("dashboard_sync_copy_failed", extra={"error": str(e)})
+    data = _sqlite_snapshot_bytes(db_path)
+    if data is None:
         return
 
     req = urllib.request.Request(  # noqa: S310 — URL is operator-configured

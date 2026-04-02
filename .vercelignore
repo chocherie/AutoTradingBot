@@ -1,0 +1,7 @@
+# CLI `vercel deploy` upload — keep runtime SQLite out of serverless bundles
+storage/
+.venv/
+venv/
+.env
+.env.*
+*.log
