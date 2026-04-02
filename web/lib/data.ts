@@ -355,6 +355,40 @@ export async function getPositionsPageData(
         "SELECT nav, total_margin_used FROM portfolio_snapshots ORDER BY date DESC LIMIT 1",
       )
       .get() as { nav: number; total_margin_used: number } | undefined;
-    return { open, closed, snap, dbUnavailable: false };
+
+    const withSlippage = (rows: Record<string, unknown>[]) => {
+      if (rows.length === 0) return rows;
+      const ids = rows
+        .map((r) => Number(r.id))
+        .filter((id) => Number.isFinite(id));
+      if (ids.length === 0) return rows;
+      const ph = ids.map(() => "?").join(",");
+      const slips = db
+        .prepare(
+          `SELECT position_id, action, slippage_bps FROM trades WHERE position_id IN (${ph}) ORDER BY id ASC`,
+        )
+        .all(...ids) as { position_id: number; action: string; slippage_bps: number }[];
+      const byPos = new Map<number, string[]>();
+      for (const t of slips) {
+        const bps = Number(t.slippage_bps);
+        const part = Number.isFinite(bps)
+          ? `${t.action} ${bps} bps`
+          : `${t.action} —`;
+        const arr = byPos.get(t.position_id) ?? [];
+        arr.push(part);
+        byPos.set(t.position_id, arr);
+      }
+      return rows.map((r) => ({
+        ...r,
+        slippage_summary: byPos.get(Number(r.id))?.join(" · ") ?? null,
+      }));
+    };
+
+    return {
+      open: withSlippage(open),
+      closed: withSlippage(closed),
+      snap,
+      dbUnavailable: false,
+    };
   });
 }
