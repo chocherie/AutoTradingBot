@@ -1,5 +1,6 @@
 import type Database from "better-sqlite3";
 import { getDbAsync } from "./db";
+import { slippageUsdForFill } from "./slippageUsd";
 
 async function withData<T>(fallback: T, run: (db: Database.Database) => T): Promise<T> {
   try {
@@ -129,7 +130,8 @@ const POSITION_JOURNAL_SELECT = `
         CASE
           WHEN status = 'OPEN' THEN unrealized_pnl
           ELSE NULL
-        END AS unrealized_pnl
+        END AS unrealized_pnl,
+        current_price
       FROM positions`;
 
 /** Trade journal: one row per position (open + closed), entry/exit notionals and P&L. */
@@ -365,22 +367,35 @@ export async function getPositionsPageData(
       const ph = ids.map(() => "?").join(",");
       const slips = db
         .prepare(
-          `SELECT position_id, action, slippage_bps FROM trades WHERE position_id IN (${ph}) ORDER BY id ASC`,
+          `SELECT position_id, action, ticker, instrument_type, quantity, price, slippage_bps FROM trades WHERE position_id IN (${ph}) ORDER BY id ASC`,
         )
-        .all(...ids) as { position_id: number; action: string; slippage_bps: number }[];
-      const byPos = new Map<number, string[]>();
+        .all(...ids) as {
+        position_id: number;
+        action: string;
+        ticker: string;
+        instrument_type: string;
+        quantity: number;
+        price: number;
+        slippage_bps: number;
+      }[];
+      const dirById = new Map<number, string>();
+      for (const r of rows) dirById.set(Number(r.id), String(r.direction));
+      const byPos = new Map<number, number>();
       for (const t of slips) {
-        const bps = Number(t.slippage_bps);
-        const part = Number.isFinite(bps)
-          ? `${t.action} ${bps} bps`
-          : `${t.action} —`;
-        const arr = byPos.get(t.position_id) ?? [];
-        arr.push(part);
-        byPos.set(t.position_id, arr);
+        const usd = slippageUsdForFill({
+          action: t.action,
+          quantity: t.quantity,
+          fillPrice: t.price,
+          slippageBps: t.slippage_bps,
+          ticker: t.ticker,
+          instrumentType: t.instrument_type,
+          positionDirection: dirById.get(t.position_id),
+        });
+        byPos.set(t.position_id, (byPos.get(t.position_id) ?? 0) + usd);
       }
       return rows.map((r) => ({
         ...r,
-        slippage_summary: byPos.get(Number(r.id))?.join(" · ") ?? null,
+        slippage_usd_total: byPos.get(Number(r.id)) ?? 0,
       }));
     };
 

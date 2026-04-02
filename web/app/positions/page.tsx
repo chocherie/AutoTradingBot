@@ -80,10 +80,15 @@ export default async function PositionsPage({
               const tk = String(p.ticker);
               const dn = getInstrumentDisplayName(tk);
               const nv = Number(p.notional_value);
-              const slip =
-                p.slippage_summary != null && String(p.slippage_summary).length > 0
-                  ? String(p.slippage_summary)
-                  : "—";
+              const slipUsd = Number(p.slippage_usd_total ?? 0);
+              const slip = Number.isFinite(slipUsd)
+                ? slipUsd.toLocaleString(undefined, {
+                    style: "currency",
+                    currency: "USD",
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })
+                : "—";
               return (
                 <tr key={String(p.id)} className="border-t border-[var(--border)]">
                   <td className="py-2 pr-3">
@@ -155,10 +160,15 @@ export default async function PositionsPage({
               {closed.map((p) => {
                 const tk = String(p.ticker);
                 const dn = getInstrumentDisplayName(tk);
-                const slip =
-                  p.slippage_summary != null && String(p.slippage_summary).length > 0
-                    ? String(p.slippage_summary)
-                    : "—";
+                const slipUsd = Number(p.slippage_usd_total ?? 0);
+                const slip = Number.isFinite(slipUsd)
+                  ? slipUsd.toLocaleString(undefined, {
+                      style: "currency",
+                      currency: "USD",
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })
+                  : "—";
                 return (
                   <tr key={String(p.id)} className="border-t border-[var(--border)]">
                     <td className="py-2">

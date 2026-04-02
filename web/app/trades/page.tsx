@@ -37,16 +37,19 @@ function groupByEntrySession(
 function TradeTable({
   grouped,
   showExitCols,
+  showLastPx = false,
 }: {
   grouped: { session: string; rows: Record<string, unknown>[] }[];
   showExitCols: boolean;
+  /** Mark-to-market last price from `positions.current_price` (open book only). */
+  showLastPx?: boolean;
 }) {
   if (grouped.length === 0 || grouped.every((g) => g.rows.length === 0)) {
     return <p className="p-8 text-center text-[var(--muted)] text-sm">No rows.</p>;
   }
 
   return (
-    <table className="w-full text-left text-sm min-w-[1180px]">
+    <table className="w-full text-left text-sm min-w-[1260px]">
       <thead>
         <tr className="text-[var(--muted)] text-xs uppercase border-b border-[var(--border)]">
           <th className="p-3 min-w-[160px]">Ticker / name</th>
@@ -55,6 +58,9 @@ function TradeTable({
           <th className="p-3">Entry date</th>
           <th className="p-3 text-right">Entry px</th>
           <th className="p-3 text-right">Entry notional</th>
+          {showLastPx && !showExitCols && (
+            <th className="p-3 text-right">Last</th>
+          )}
           {showExitCols && (
             <>
               <th className="p-3">Exit date</th>
@@ -67,7 +73,13 @@ function TradeTable({
       </thead>
       <tbody>
         {grouped.map(({ session, rows }) => (
-          <FragmentSession key={session} session={session} rows={rows} showExitCols={showExitCols} />
+          <FragmentSession
+            key={session}
+            session={session}
+            rows={rows}
+            showExitCols={showExitCols}
+            showLastPx={showLastPx}
+          />
         ))}
       </tbody>
     </table>
@@ -78,29 +90,40 @@ function FragmentSession({
   session,
   rows,
   showExitCols,
+  showLastPx = false,
 }: {
   session: string;
   rows: Record<string, unknown>[];
   showExitCols: boolean;
+  showLastPx?: boolean;
 }) {
+  const colSpan = showExitCols ? 10 : showLastPx ? 8 : 7;
   return (
     <>
       <tr className="bg-[#1a2230]/80">
         <td
-          colSpan={showExitCols ? 10 : 7}
+          colSpan={colSpan}
           className="py-2.5 px-3 text-xs font-medium uppercase tracking-wide text-tape-amber/90 border-t border-tape-amber/20"
         >
           Entry session {session}
         </td>
       </tr>
       {rows.map((r) => (
-        <TradeRow key={String(r.id)} r={r} showExitCols={showExitCols} />
+        <TradeRow key={String(r.id)} r={r} showExitCols={showExitCols} showLastPx={showLastPx} />
       ))}
     </>
   );
 }
 
-function TradeRow({ r, showExitCols }: { r: Record<string, unknown>; showExitCols: boolean }) {
+function TradeRow({
+  r,
+  showExitCols,
+  showLastPx = false,
+}: {
+  r: Record<string, unknown>;
+  showExitCols: boolean;
+  showLastPx?: boolean;
+}) {
   const open = String(r.status) === "OPEN";
   const rpnl = r.realized_pnl != null ? Number(r.realized_pnl) : null;
   const upnl = r.unrealized_pnl != null ? Number(r.unrealized_pnl) : null;
@@ -127,6 +150,11 @@ function TradeRow({ r, showExitCols }: { r: Record<string, unknown>; showExitCol
       <td className="p-3 font-mono text-xs whitespace-nowrap">{String(r.entry_date)}</td>
       <td className="p-3 font-mono text-right">{fmtPrice(Number(r.entry_price))}</td>
       <td className="p-3 font-mono text-right">{fmtMoney(Number(r.entry_notional_usd))}</td>
+      {showLastPx && !showExitCols && (
+        <td className="p-3 font-mono text-right">
+          {fmtPrice(r.current_price != null ? Number(r.current_price) : null)}
+        </td>
+      )}
       {showExitCols && (
         <>
           <td className="p-3 font-mono text-xs whitespace-nowrap">
@@ -198,7 +226,7 @@ export default async function TradesPage({
           <span className="text-[var(--muted)] text-sm font-normal ml-2">({data.open.length})</span>
         </h2>
         <div className="card overflow-x-auto">
-          <TradeTable grouped={openGrouped} showExitCols={false} />
+          <TradeTable grouped={openGrouped} showExitCols={false} showLastPx />
         </div>
       </div>
 
