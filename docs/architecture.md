@@ -48,7 +48,7 @@ Collects market prices (yfinance), economic indicators (FRED), and news sentimen
 **Modules**: `performance.py` (NAV series, Sharpe, drawdown from snapshots), `trade_journal.py` (SQL helpers).
 
 ### `src/main.py`
-Orchestrates: data fetch → price update → stop/TP + circuit halt → prompt → Claude → `daily_analysis` + orders → `portfolio_snapshots`.
+Orchestrates: data fetch → price update → stop/TP + circuit halt → prompt → Claude → `daily_analysis` (incl. `daily_findings` narrative) + orders → `portfolio_snapshots`.
 
 ### `web/` — Dashboard
 Next.js App Router, Tailwind, Recharts; `lib/db.ts` + `lib/data.ts` read SQLite (read-only). Override DB path with `DATABASE_PATH`. On Vercel, `getDbAsync` can pull the latest copy from **Vercel Blob** (`BLOB_READ_WRITE_TOKEN`), re-fetching when blob `uploadedAt` or `size` changes; `src/utils/dashboard_sync.py` snapshots the DB via SQLite `backup()` (WAL-safe) then `POST /api/admin/sync-db` after each `src.main` run when `DASHBOARD_DB_SYNC_*` is set. API routes under `app/api/*`.

@@ -18,65 +18,12 @@ Optional **Anthropic tool_use** tools (see `src/brain/claude_tools.py`): read re
 
 ## System Prompt
 
-```
-You are a systematic macro portfolio manager running a $1,000,000 paper trading portfolio.
-You trade G7 exchange-traded instruments: equity index futures, bond futures, commodity futures, ETFs, and options.
+Authoritative copy lives in `SYSTEM_PROMPT` / `SYSTEM_PROMPT_OPTIONS_DISABLED` in [`src/brain/claude_client.py`](../src/brain/claude_client.py). Summary of **JSON fields**:
 
-CONSTRAINTS (hard limits enforced by the system):
-- Maximum 20% of NAV in any single position
-- Maximum 60% total margin utilization
-- Maximum 10% portfolio heat (sum of all stop-loss distances as % of NAV)
-- Every new position MUST have a stop-loss and take-profit level
-- Set stop-losses at 1-3x ATR from entry price
-
-YOUR MANDATE:
-- Maximize risk-adjusted returns (Sharpe ratio is your primary metric)
-- You may hold cash — being flat is a valid position
-- You decide signal complexity, position sizing, and risk levels
-- You can trade options for hedging, income, or directional bets
-- Consider cross-asset correlations and regime changes
-
-OUTPUT FORMAT:
-You MUST respond with valid JSON matching this exact schema:
-{
-    "market_regime": "RISK_ON | RISK_OFF | TRANSITIONAL | CRISIS",
-    "macro_summary": "2-3 sentence assessment of current macro environment",
-    "orders": [
-        {
-            "ticker": "ES=F",
-            "action": "BUY | SELL | SHORT | COVER",
-            "size_pct_nav": 5.0,
-            "order_type": "MARKET | LIMIT",
-            "limit_price": null,
-            "stop_loss_pct": 2.0,
-            "take_profit_pct": 6.0,
-            "rationale": "Detailed explanation of why this trade",
-            "confidence": "HIGH | MEDIUM | LOW",
-            "signal_source": "What data drove this decision",
-            "option_details": null
-        }
-    ],
-    "positions_to_close": ["ticker1"],
-    "risk_notes": "Any concerns about current portfolio risk",
-    "session_learnings": ["Optional 0–5 bullets saved for future prompts"]
-}
-
-For OPTIONS trades, include option_details:
-{
-    "option_details": {
-        "type": "CALL | PUT",
-        "strike": 530.0,
-        "expiry": "2026-04-17",
-        "strategy": "directional | hedge | income"
-    }
-}
-
-IMPORTANT:
-- Only use tickers from the provided instrument universe
-- Respond with ONLY the JSON object, no other text
-- If you want to make no changes, return an empty orders array
-- Always explain your reasoning in the rationale field
-```
+- **`market_regime`**, **`macro_summary`** (2–3 sentences only), **`daily_findings`** (multi-paragraph session narrative persisted to `daily_analysis.daily_findings`)
+- **`orders`** with **`rationale`** structured as: (1) view/sentiment, (2) briefing evidence, (3) decision/conviction vs sizing and stops
+- **`positions_to_close`**, **`risk_notes`** (sector/cash book aligned to MARKET DATA buckets, quantified where possible), **`session_learnings`**
+- Options: same schema with `option_details` when `trading.options_enabled` is true
 
 ## User Prompt Structure (preamble + data sections, ~4000 tokens)
 
@@ -142,4 +89,4 @@ Top Headlines:
 5. If still fails: log error, skip new trades, enforce existing stops only
 
 ## Cost Tracking
-Log tokens used (input + output) and estimated cost per call. Store in `daily_analysis` table.
+Log tokens used (input + output) and estimated cost per call. Store in `daily_analysis` table together with regime, macro summary, **`daily_findings`**, risk notes, and raw response.

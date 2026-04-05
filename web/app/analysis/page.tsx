@@ -28,6 +28,11 @@ export default async function AnalysisPage({
               </span>
             </div>
             <p className="text-sm leading-relaxed text-[var(--text)]">{String(r.macro_summary)}</p>
+            {r.daily_findings ? (
+              <div className="text-sm leading-relaxed text-[var(--text)] border-t border-[var(--border)] pt-3 mt-2 whitespace-pre-wrap">
+                {String(r.daily_findings)}
+              </div>
+            ) : null}
             {r.risk_notes ? (
               <p className="text-xs text-tape-amber/90 border-t border-[var(--border)] pt-2">
                 {String(r.risk_notes)}

@@ -45,7 +45,8 @@ OUTPUT FORMAT:
 You MUST respond with valid JSON matching this exact schema:
 {
     "market_regime": "RISK_ON | RISK_OFF | TRANSITIONAL | CRISIS",
-    "macro_summary": "2-3 sentence assessment of current macro environment",
+    "macro_summary": "Exactly 2-3 sentences: high-level macro assessment only (headline, scannable)",
+    "daily_findings": "Multi-paragraph expanded analysis for this session: main takeaways from MARKET DATA, economic indicators, and news; cross-asset and regime read (what changed); key uncertainties or data gaps; intended portfolio posture for today even if orders is empty. Do not paste full per-order rationales here.",
     "orders": [
         {
             "ticker": "ES=F",
@@ -55,14 +56,14 @@ You MUST respond with valid JSON matching this exact schema:
             "limit_price": null,
             "stop_loss_pct": 2.0,
             "take_profit_pct": 6.0,
-            "rationale": "Detailed explanation of why this trade",
+            "rationale": "Per order: (1) market view and sentiment, (2) research findings from the briefing (prices, indicators, news) that support the trade, (3) the decision, conviction level, and why sizing and stops match conviction.",
             "confidence": "HIGH | MEDIUM | LOW",
             "signal_source": "What data drove this decision",
             "option_details": null
         }
     ],
     "positions_to_close": ["ticker1"],
-    "risk_notes": "Any concerns about current portfolio risk",
+    "risk_notes": "Sector-level book review: group correlated underlyings into sectors using the SAME bucket labels as ## MARKET DATA in the user message (e.g. bonds, commodities, equity indices, ETFs & options underlyings, FX). Include cash. Quantify where possible (% NAV, margin, notional) and justify each sector exposure and cash versus your stated regime.",
     "session_learnings": [
         "Concrete lesson from today (e.g. risk, data pitfall, execution quirk) for future runs"
     ]
@@ -82,7 +83,9 @@ IMPORTANT:
 - Only use tickers from the provided instrument universe
 - Final reply: ONLY the JSON object, no markdown fences, no commentary (after tools if any)
 - If you want to make no changes, return an empty orders array
-- Always explain your reasoning in the rationale field on orders
+- macro_summary stays brief; put depth in daily_findings
+- risk_notes focuses on sector/cash book and risk; put narrative synthesis in daily_findings
+- Every non-empty order must have rationale covering (1) view/sentiment, (2) evidence, (3) decision and conviction vs sizing/stops
 - session_learnings: 0–5 short strings; omit or use [] if nothing new to record"""
 
 # When settings.yaml has trading.options_enabled: false
@@ -112,7 +115,8 @@ OUTPUT FORMAT:
 You MUST respond with valid JSON matching this exact schema:
 {
     "market_regime": "RISK_ON | RISK_OFF | TRANSITIONAL | CRISIS",
-    "macro_summary": "2-3 sentence assessment of current macro environment",
+    "macro_summary": "Exactly 2-3 sentences: high-level macro assessment only (headline, scannable)",
+    "daily_findings": "Multi-paragraph expanded analysis for this session: main takeaways from MARKET DATA, economic indicators, and news; cross-asset and regime read (what changed); key uncertainties or data gaps; intended portfolio posture for today even if orders is empty. Do not paste full per-order rationales here.",
     "orders": [
         {
             "ticker": "ES=F",
@@ -122,14 +126,14 @@ You MUST respond with valid JSON matching this exact schema:
             "limit_price": null,
             "stop_loss_pct": 2.0,
             "take_profit_pct": 6.0,
-            "rationale": "Detailed explanation of why this trade",
+            "rationale": "Per order: (1) market view and sentiment, (2) research findings from the briefing (prices, indicators, news) that support the trade, (3) the decision, conviction level, and why sizing and stops match conviction.",
             "confidence": "HIGH | MEDIUM | LOW",
             "signal_source": "What data drove this decision",
             "option_details": null
         }
     ],
     "positions_to_close": ["ticker1"],
-    "risk_notes": "Any concerns about current portfolio risk",
+    "risk_notes": "Sector-level book review: group correlated underlyings into sectors using the SAME bucket labels as ## MARKET DATA in the user message (e.g. bonds, commodities, equity indices, ETFs & options underlyings, FX). Include cash. Quantify where possible (% NAV, margin, notional) and justify each sector exposure and cash versus your stated regime.",
     "session_learnings": [
         "Concrete lesson from today (e.g. risk, data pitfall, execution quirk) for future runs"
     ]
@@ -139,7 +143,9 @@ IMPORTANT:
 - Only use tickers from the provided instrument universe
 - Final reply: ONLY the JSON object, no markdown fences, no commentary (after tools if any)
 - If you want to make no changes, return an empty orders array
-- Always explain your reasoning in the rationale field on orders
+- macro_summary stays brief; put depth in daily_findings
+- risk_notes focuses on sector/cash book and risk; put narrative synthesis in daily_findings
+- Every non-empty order must have rationale covering (1) view/sentiment, (2) evidence, (3) decision and conviction vs sizing/stops
 - session_learnings: 0–5 short strings; omit or use [] if nothing new to record"""
 
 

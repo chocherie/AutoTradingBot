@@ -70,7 +70,7 @@ Collect Data → Check Stops/TPs → Build Prompt → Call Claude → Execute Or
 - `config/settings.yaml` — All tunable parameters in one place
 
 ## Database
-SQLite at `storage/trading_bot.db`. Tables: `portfolio_snapshots`, `positions`, `trades`, `daily_analysis`, `data_cache`.
+SQLite at `storage/trading_bot.db`. Tables: `portfolio_snapshots`, `positions`, `trades`, `daily_analysis` (incl. `daily_findings` text), `data_cache`.
 
 ## Learned User Preferences
 - Expect the hosted dashboard to reflect the latest bot run after a fresh blob upload and a deployed `web/` revision that matches the repo.

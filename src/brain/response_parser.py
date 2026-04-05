@@ -54,10 +54,18 @@ class ParsedOrder(BaseModel):
 class ClaudeDecision(BaseModel):
     market_regime: str
     macro_summary: str
+    daily_findings: str = ""
     orders: List[ParsedOrder] = Field(default_factory=list)
     positions_to_close: List[str] = Field(default_factory=list)
     risk_notes: str = ""
     session_learnings: List[str] = Field(default_factory=list)
+
+    @field_validator("daily_findings", mode="before")
+    @classmethod
+    def _coerce_daily_findings(cls, v: Any) -> str:
+        if v is None:
+            return ""
+        return str(v).strip() if isinstance(v, str) else str(v)
 
     @field_validator("session_learnings", mode="before")
     @classmethod

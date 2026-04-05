@@ -20,7 +20,7 @@ Think of one daily cycle as a **conveyor belt**:
 3. **Severe drawdown (“circuit halt”)** — if the portfolio has fallen **very** far from its peak (see `circuit_breaker_halt` in `config/settings.yaml`), the system starts **force-closing** the largest positions to bring risk down. Again: automatic safety rail.
 4. **Build the briefing** — portfolio snapshot, market stats (trend and volatility-style fields), economic indicators, and news sentiment go into the prompt Claude sees.
    **Operator note:** the same conveyor-belt story (steps **1–6** above) is repeated at the very top of that user message as `## DAILY PIPELINE`, built in `src/brain/prompt_builder.py`, so the model always sees what already ran and that `positions_to_close` executes before new `orders`.
-5. **Claude responds** — one JSON object: regime, macro summary, `orders`, `positions_to_close`, and risk notes.
+5. **Claude responds** — one JSON object: regime, short `macro_summary`, expanded `daily_findings` (session narrative), `orders`, `positions_to_close`, sector-aware `risk_notes` (and cash), plus optional `session_learnings`.
 6. **`positions_to_close` runs first** — for each listed ticker, the simulator tries to **flatten** that exposure (sell longs / cover shorts) with the rationale `claude_positions_to_close`.
 7. **`orders` run next** — each `BUY`, `SELL`, `SHORT`, or `COVER` is checked against limits and the **actual** open positions, then **paper-filled** with slippage and commissions if allowed.
 
@@ -40,6 +40,8 @@ In its system instructions, Claude is cast as a **systematic macro manager** wit
 - Options are allowed when specified with strikes/expiry in the schema.
 
 It **must** attach a **stop** and **take-profit** (as percentages) to new risk. The prompt universe is **G7 exchange-traded** names only—no random tickers outside the list it is given that day.
+
+System instructions also ask for **structured rationales** on each order (view/sentiment, evidence from the briefing, conviction vs sizing) and for **`daily_findings`** to be stored on the **`daily_analysis`** row (dashboard **Daily analysis** page) as the long-form write-up for that session, separate from the short macro headline.
 
 ### Hard limits the model cannot override
 

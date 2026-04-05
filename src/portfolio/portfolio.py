@@ -99,6 +99,7 @@ def ensure_schema(conn: sqlite3.Connection) -> None:
             market_regime TEXT,
             macro_summary TEXT,
             risk_notes TEXT,
+            daily_findings TEXT,
             raw_response TEXT,
             input_tokens INTEGER,
             output_tokens INTEGER,
@@ -130,6 +131,10 @@ def _migrate_schema(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE positions ADD COLUMN entry_notional_usd REAL")
     if "exit_notional_usd" not in pcols:
         conn.execute("ALTER TABLE positions ADD COLUMN exit_notional_usd REAL")
+
+    dcols = {str(r[1]) for r in conn.execute("PRAGMA table_info(daily_analysis)").fetchall()}
+    if "daily_findings" not in dcols:
+        conn.execute("ALTER TABLE daily_analysis ADD COLUMN daily_findings TEXT")
 
 
 class Portfolio:
@@ -789,20 +794,23 @@ class Portfolio:
         market_regime: str,
         macro_summary: str,
         risk_notes: str,
+        daily_findings: str = "",
         raw_response: str,
         input_tokens: int,
         output_tokens: int,
         estimated_cost_usd: float,
     ) -> None:
+        df = (daily_findings or "")[:200_000]
         with self._conn() as conn:
             conn.execute(
                 """INSERT INTO daily_analysis (date, market_regime, macro_summary, risk_notes,
-                   raw_response, input_tokens, output_tokens, estimated_cost_usd)
-                   VALUES (?,?,?,?,?,?,?,?)
+                   daily_findings, raw_response, input_tokens, output_tokens, estimated_cost_usd)
+                   VALUES (?,?,?,?,?,?,?,?,?)
                    ON CONFLICT(date) DO UPDATE SET
                    market_regime=excluded.market_regime,
                    macro_summary=excluded.macro_summary,
                    risk_notes=excluded.risk_notes,
+                   daily_findings=excluded.daily_findings,
                    raw_response=excluded.raw_response,
                    input_tokens=excluded.input_tokens,
                    output_tokens=excluded.output_tokens,
@@ -813,6 +821,7 @@ class Portfolio:
                     market_regime,
                     macro_summary,
                     risk_notes,
+                    df,
                     raw_response,
                     input_tokens,
                     output_tokens,

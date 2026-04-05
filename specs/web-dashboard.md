@@ -40,7 +40,7 @@ Next.js web app reading from the shared SQLite database. Displays live portfolio
 - **Benchmark comparison**: Overlay S&P 500 returns on equity curve
 
 ### 5. Daily Analysis (`/analysis`)
-- **Latest entry**: market regime, macro summary, risk notes (from `daily_analysis`)
+- **Latest entry**: market regime, macro summary, expanded **`daily_findings`**, risk notes (from `daily_analysis`)
 - **History**: scrollable list of past entries, one per trading day
 - **Cost tracking**: tokens used, estimated API cost per day and cumulative
 
