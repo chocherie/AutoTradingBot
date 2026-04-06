@@ -169,7 +169,7 @@ def run_daily(
     )
 
     raw_final = ""
-    usage_tot = ClaudeUsage(0, 0, str(settings.get("claude", {}).get("model", "")))
+    usage_tot = ClaudeUsage(0, 0, str(settings.get("claude", {}).get("model", "claude-opus-4-20250514")))
     dec: Optional[ClaudeDecision] = None
     err: Optional[str] = None
 

@@ -46,7 +46,7 @@ def prior_nav_before(as_of: str) -> Optional[float]:
     """
     path = db_path()
     if not path.exists():
-        return None
+        return float(load_settings().get("portfolio", {}).get("initial_capital", 1_000_000.0))
     conn = sqlite3.connect(path)
     try:
         row = conn.execute(

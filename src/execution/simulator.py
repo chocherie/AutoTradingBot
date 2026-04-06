@@ -180,7 +180,7 @@ class PaperSimulator:
             margin_required=0.0,
             notional_value=0.0,
             option_type=order.option_details.get("option_type") if order.option_details else None,
-            strike=float(order.option_details["strike"]) if order.option_details else None,
+            strike=float(order.option_details.get("strike", 0.0)) if order.option_details else None,
             expiry=str(order.option_details["expiry"]) if order.option_details else None,
         )
 

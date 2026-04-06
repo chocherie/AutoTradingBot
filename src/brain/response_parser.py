@@ -24,10 +24,14 @@ class OptionDetailsParse(BaseModel):
 
     def to_execution_dict(self) -> Dict[str, Any]:
         ot = self.option_type or self.type or "CALL"
+        if self.strike is None or self.strike <= 0:
+            raise ValueError("option strike price is required and must be positive")
+        if not self.expiry:
+            raise ValueError("option expiry date is required")
         return {
             "option_type": ot,
-            "strike": float(self.strike or 0.0),
-            "expiry": str(self.expiry or ""),
+            "strike": float(self.strike),
+            "expiry": str(self.expiry),
             "strategy": self.strategy,
         }
 
@@ -138,11 +142,16 @@ def orders_to_intents(decision: ClaudeDecision) -> List[OrderIntent]:
             try:
                 op = OptionDetailsParse.model_validate(raw)
                 od = op.to_execution_dict()
-            except Exception:
+            except Exception as exc:
+                strike_raw = raw.get("strike")
+                expiry_raw = raw.get("expiry")
+                if strike_raw is None or float(strike_raw) <= 0 or not expiry_raw:
+                    logger.warning("option_details_invalid", extra={"raw": raw, "error": str(exc)})
+                    continue
                 od = {
                     "option_type": str(raw.get("type") or raw.get("option_type") or "CALL"),
-                    "strike": float(raw.get("strike", 0)),
-                    "expiry": str(raw.get("expiry", "")),
+                    "strike": float(strike_raw),
+                    "expiry": str(expiry_raw),
                 }
         out.append(
             OrderIntent(

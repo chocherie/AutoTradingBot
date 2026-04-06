@@ -23,7 +23,7 @@ def _db_path() -> Path:
 def _connect() -> sqlite3.Connection:
     path = _db_path()
     path.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.Connection(path, timeout=30.0)
+    conn = sqlite3.connect(str(path), timeout=30.0)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL;")
     conn.execute("PRAGMA foreign_keys=ON;")
@@ -610,6 +610,8 @@ class Portfolio:
         old_q = target.quantity
         old_px = target.entry_price
         new_q = old_q + add_quantity
+        if abs(new_q) < 1e-9:
+            raise ValueError(f"merge_add would zero out position id={position_id}; use close instead")
         new_entry = (old_q * old_px + add_quantity * add_entry_price) / new_q
 
         fx = resolve_fx_to_usd(meta, prices)
