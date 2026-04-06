@@ -176,12 +176,16 @@ class Portfolio:
 
     def _persist_meta(self) -> None:
         with self._conn() as conn:
-            conn.execute(
-                """UPDATE portfolio_meta SET cash = ?, peak_nav = ?,
-                   updated_at = datetime('now') WHERE id = 1""",
-                (self._cash, self._peak_nav),
-            )
+            self._persist_meta_conn(conn)
             conn.commit()
+
+    def _persist_meta_conn(self, conn: sqlite3.Connection) -> None:
+        """Write `portfolio_meta` cash/peaks; caller must commit (same txn as position rows when possible)."""
+        conn.execute(
+            """UPDATE portfolio_meta SET cash = ?, peak_nav = ?,
+               updated_at = datetime('now') WHERE id = 1""",
+            (self._cash, self._peak_nav),
+        )
 
     def save_open_positions_snapshot(self) -> None:
         """Rewrite OPEN rows from memory (rare; normally use add/close paths)."""
@@ -225,7 +229,8 @@ class Portfolio:
     def _refresh_peak(self, prices: Optional[Dict[str, float]] = None) -> None:
         if prices is None:
             prices = {}
-        nav = self.get_nav(prices) if prices else self._cash
+        # Always use full get_nav — empty dict is valid (marks from stored current_price / entry).
+        nav = self.get_nav(prices)
         if nav > self._peak_nav:
             self._peak_nav = nav
             self._persist_meta()
@@ -327,8 +332,8 @@ class Portfolio:
                                 p.margin_required,
                                 p.notional_value,
                                 p.id,
-                            ),
-                        )
+                        ),
+                    )
             conn.commit()
         self._refresh_peak(prices)
 
@@ -457,6 +462,8 @@ class Portfolio:
                     None,
                 ),
             )
+            # Same transaction as CLOSE rows — avoids CLOSED + stale cash if process stops mid-flight.
+            self._persist_meta_conn(conn)
             conn.commit()
 
         target.status = "CLOSED"
@@ -464,7 +471,6 @@ class Portfolio:
         target.exit_date = exit_date
         target.realized_pnl = realized
         self._positions = [x for x in self._positions if not (x.id == position_id and x.status == "CLOSED")]
-        self._persist_meta()
         return realized
 
     def add_position(
@@ -564,11 +570,11 @@ class Portfolio:
                     signal_source,
                 ),
             )
+            self._persist_meta_conn(conn)
             conn.commit()
 
         pos.id = pid
         self._positions.append(pos)
-        self._persist_meta()
         return pid
 
     def merge_add_to_open(
@@ -683,9 +689,9 @@ class Portfolio:
                     signal_source,
                 ),
             )
+            self._persist_meta_conn(conn)
             conn.commit()
 
-        self._persist_meta()
         return position_id
 
     def to_summary_dict(self, prices: Dict[str, float]) -> dict:
@@ -786,6 +792,28 @@ class Portfolio:
                 ),
             )
             conn.commit()
+
+    def has_substantive_daily_analysis(self, as_of: str) -> bool:
+        """True if *as_of* already has a real Claude row (not --skip-claude / skipped JSON)."""
+        with self._conn() as conn:
+            ensure_schema(conn)
+            row = conn.execute(
+                """SELECT macro_summary, raw_response, COALESCE(input_tokens, 0) AS it
+                   FROM daily_analysis WHERE date = ?""",
+                (as_of,),
+            ).fetchone()
+        if row is None:
+            return False
+        macro = (row["macro_summary"] or "").strip()
+        raw = (row["raw_response"] or "").strip()
+        it = int(row["it"])
+        if it > 0:
+            return True
+        if raw.startswith('{"skipped"'):
+            return False
+        if macro in ("--skip-claude", "N/A", ""):
+            return False
+        return len(raw) > 30 or len(macro) > 3
 
     def write_daily_analysis(
         self,

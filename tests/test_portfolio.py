@@ -7,7 +7,7 @@ import pytest
 from src.execution.order import OrderIntent
 from src.execution.simulator import PaperSimulator
 from src.portfolio import portfolio as portfolio_mod
-from src.portfolio.portfolio import Portfolio
+from src.portfolio.portfolio import Portfolio, ensure_schema
 
 
 @pytest.fixture
@@ -171,6 +171,35 @@ def test_etf_round_trip_cash_not_destroyed(tmp_db):
     c1 = port.get_cash()
     assert c1 > c0 * 0.99, f"cash impaired vs start: {c0} -> {c1}"
     assert c1 <= c0 + 500.0
+
+    port2 = Portfolio()
+    port2.load_state()
+    assert abs(port2.get_cash() - c1) < 1e-4, "cash must persist with CLOSED row (atomic meta write)"
+
+
+def test_has_substantive_daily_analysis(tmp_db):
+    port = Portfolio()
+    port.load_state()
+    day = "2026-05-01"
+    assert not port.has_substantive_daily_analysis(day)
+    with port._conn() as conn:
+        ensure_schema(conn)
+        conn.execute(
+            """INSERT INTO daily_analysis (date, market_regime, macro_summary, risk_notes,
+               daily_findings, raw_response, input_tokens, output_tokens, estimated_cost_usd)
+               VALUES (?,?,?,?,?,?,?,?,?)""",
+            (day, "CRISIS", "Real summary text", "", "", '{"market_regime": "CRISIS"}', 100, 50, 0.01),
+        )
+        conn.commit()
+    assert port.has_substantive_daily_analysis(day)
+    with port._conn() as conn:
+        conn.execute(
+            """UPDATE daily_analysis SET macro_summary='--skip-claude', raw_response='{"skipped": true}',
+               input_tokens=0 WHERE date=?""",
+            (day,),
+        )
+        conn.commit()
+    assert not port.has_substantive_daily_analysis(day)
 
 
 def test_reject_oversize(monkeypatch, tmp_path):

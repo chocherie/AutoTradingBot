@@ -35,13 +35,22 @@ class Position:
     def direction_sign(self) -> int:
         return 1 if self.direction == "LONG" else -1
 
+    def _mark_price(self, prices: Dict[str, float]) -> float:
+        """Prefer live feed for this ticker; avoids stale current_price if update_prices skipped a leg."""
+        feed = prices.get(self.ticker)
+        if feed is not None:
+            return float(feed)
+        if self.current_price is not None:
+            return float(self.current_price)
+        return float(self.entry_price)
+
     def market_value(
         self,
         meta: InstrumentMeta,
         prices: Dict[str, float],
     ) -> float:
         """Mark-to-market USD contribution to NAV (per portfolio-engine spec)."""
-        px = self.current_price if self.current_price is not None else self.entry_price
+        px = self._mark_price(prices)
         fx = resolve_fx_to_usd(meta, prices)
         if self.instrument_type == "future":
             if self.direction == "LONG":
@@ -56,7 +65,7 @@ class Position:
         return (self.entry_price - px) * self.quantity * fx
 
     def unrealized_from_prices(self, meta: InstrumentMeta, prices: Dict[str, float]) -> float:
-        px = self.current_price if self.current_price is not None else self.entry_price
+        px = self._mark_price(prices)
         fx = resolve_fx_to_usd(meta, prices)
         if self.instrument_type == "future":
             if self.direction == "LONG":

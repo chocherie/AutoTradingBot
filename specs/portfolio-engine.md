@@ -19,6 +19,12 @@ For options:
   market_value = current_price * quantity * multiplier  (premium-based)
 ```
 
+**Persistence / reconciliation**: Closing a position updates `positions` and inserts a `trades` row in the **same SQLite transaction** as `portfolio_meta.cash` (and the same for new opens / merge-adds). If cash were committed separately, a crash could leave a CLOSED ETF leg with **sale proceeds never credited** to cash while NAV (`get_nav`) drops the position line — producing nonsense like “NAV − cash collapsed but the ETF was profitable.”
+
+**ETF close vs NAV − cash**: Long ETF adds **`exit × qty − commission`** to cash and removes **`last_mark × qty`** from the position sum. Total NAV moves by roughly **`(exit − last_mark) × qty`** (plus fees), not by −full notional. Do not attribute a drop in **`NAV − cash`** alone to “losing the ETF” without noting proceeds moved into **`cash`**.
+
+**Daily return when snapshot dates have gaps**: `prior_nav_before` uses the latest snapshot **strictly before** `as_of`. Missing calendar days make `daily_return` span multiple sessions; interpret accordingly.
+
 ## Position Lifecycle
 1. **Open / add**: Claude sends OrderIntent → Simulator fills → new **OPEN** row **or** incremental **BUY**/**SHORT** into an existing open leg (same ticker, direction, and instrument identity; VWAP entry, one row).
 2. **Daily Update**: Current prices fetched → unrealized P&L recalculated

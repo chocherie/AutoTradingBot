@@ -100,7 +100,13 @@ def _close_ticker(
         )
 
 
-def run_daily(as_of: str, *, skip_claude: bool = False) -> None:
+def run_daily(
+    as_of: str,
+    *,
+    skip_claude: bool = False,
+    force_daily_analysis: bool = False,
+    analysis_only: bool = False,
+) -> None:
     load_dotenv()
     setup_logging()
     settings = load_settings()
@@ -167,6 +173,10 @@ def run_daily(as_of: str, *, skip_claude: bool = False) -> None:
     dec: Optional[ClaudeDecision] = None
     err: Optional[str] = None
 
+    if skip_claude and analysis_only:
+        logger.error("invalid_arguments_analysis_only_requires_claude")
+        return
+
     if skip_claude:
         dec = ClaudeDecision(
             market_regime="N/A",
@@ -212,7 +222,18 @@ def run_daily(as_of: str, *, skip_claude: bool = False) -> None:
 
     cost = estimate_cost_usd(usage_tot, settings) if not skip_claude else 0.0
 
-    if dec:
+    low_value_write = skip_claude or dec is None
+    preserve_daily = (
+        not force_daily_analysis
+        and portfolio.has_substantive_daily_analysis(as_of)
+        and low_value_write
+    )
+    if preserve_daily:
+        logger.info(
+            "daily_analysis_preserved",
+            extra={"as_of": as_of, "skip_claude": skip_claude, "had_parse_error": dec is None},
+        )
+    elif dec:
         portfolio.write_daily_analysis(
             as_of,
             market_regime=dec.market_regime,
@@ -240,7 +261,8 @@ def run_daily(as_of: str, *, skip_claude: bool = False) -> None:
     if dec is not None and not skip_claude:
         portfolio.append_session_learnings(as_of, dec.session_learnings)
 
-    if dec:
+    run_trades = bool(dec) and not skip_claude and not analysis_only
+    if run_trades:
         for t in dec.positions_to_close:
             _close_ticker(
                 portfolio,
@@ -276,7 +298,12 @@ def run_daily(as_of: str, *, skip_claude: bool = False) -> None:
 
     logger.info(
         "daily_cycle_complete",
-        extra={"as_of": as_of, "nav": nav_final, "skip_claude": skip_claude},
+        extra={
+            "as_of": as_of,
+            "nav": nav_final,
+            "skip_claude": skip_claude,
+            "analysis_only": analysis_only,
+        },
     )
 
     try:
@@ -299,6 +326,16 @@ def main() -> None:
         action="store_true",
         help="Collect data and update snapshot without calling Anthropic",
     )
+    parser.add_argument(
+        "--force-daily-analysis",
+        action="store_true",
+        help="With --skip-claude: still overwrite daily_analysis (default: keep existing Claude row)",
+    )
+    parser.add_argument(
+        "--analysis-only",
+        action="store_true",
+        help="Call Claude and persist daily_analysis + session learnings only; do not execute closes/orders",
+    )
     args = parser.parse_args()
     if args.date:
         as_of = args.date
@@ -311,7 +348,14 @@ def main() -> None:
             as_of = datetime.now(ZoneInfo(tz_name)).strftime("%Y-%m-%d")
         except Exception:
             as_of = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    run_daily(as_of, skip_claude=args.skip_claude)
+    if args.analysis_only and args.skip_claude:
+        parser.error("--analysis-only cannot be combined with --skip-claude")
+    run_daily(
+        as_of,
+        skip_claude=args.skip_claude,
+        force_daily_analysis=args.force_daily_analysis,
+        analysis_only=args.analysis_only,
+    )
 
 
 if __name__ == "__main__":

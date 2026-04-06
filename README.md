@@ -57,6 +57,8 @@ Smoke test without Claude (data + DB snapshot only):
 python3 -m src.main --skip-claude
 ```
 
+`--skip-claude` no longer overwrites an existing real `daily_analysis` row for that date (use `--force-daily-analysis` to replace it). To re-run Claude narrative only without executing orders: `python3 -m src.main --date YYYY-MM-DD --analysis-only`.
+
 Historical *as-of* date:
 
 ```bash

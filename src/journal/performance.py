@@ -39,6 +39,10 @@ def prior_nav_before(as_of: str) -> Optional[float]:
 
     Never use ``portfolio_meta.cash`` here — with open positions, cash understates total portfolio value
     and makes *daily return* look like ``NAV / cash - 1`` (bogus large positive prints).
+
+    If there is no snapshot for intermediate calendar dates (e.g. weekend + holiday), the ratio
+    ``NAV_today / prior_nav`` spans multiple trading sessions — not a single-day return unless you
+    insert a row per session day.
     """
     path = db_path()
     if not path.exists():
