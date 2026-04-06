@@ -58,11 +58,13 @@ class Position:
             return (self.entry_price - px) * self.quantity * meta.multiplier
         if self.instrument_type == "option":
             om = meta.option_contract_multiplier or 100.0
-            return px * self.quantity * om
-        # ETF (long-only supported)
+            if self.direction == "LONG":
+                return px * self.quantity * om
+            return -(px * self.quantity * om)
+        # ETF / spot
         if self.direction == "LONG":
             return px * self.quantity * fx
-        return (self.entry_price - px) * self.quantity * fx
+        return -(px * self.quantity * fx)
 
     def unrealized_from_prices(self, meta: InstrumentMeta, prices: Dict[str, float]) -> float:
         px = self._mark_price(prices)
