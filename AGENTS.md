@@ -37,6 +37,9 @@ python -m src.main --date 2026-03-30
 # Refresh Claude daily_analysis only (no trade execution); use after a mistaken --skip-claude overwrite
 python -m src.main --date 2026-04-06 --analysis-only
 
+# If NAV looks ~1 ETF sale short after an old bug (stale portfolio_meta.cash), replay cash then refresh snapshot:
+PYTHONPATH=. python3 scripts/repair_portfolio_cash.py --apply && PYTHONPATH=. python3 -m src.main --skip-claude --date YYYY-MM-DD
+
 # Start web dashboard (from repo root: ../storage/trading_bot.db)
 cd web && npm install && npm run dev
 
@@ -80,6 +83,7 @@ SQLite at `storage/trading_bot.db`. Tables: `portfolio_snapshots`, `positions`, 
 - Treat “Vercel not updated” as often a Git/deploy gap (unpushed commits or no new deployment), not only a sync failure.
 - When helping with setup and daily ops, give short copy-pasteable terminal commands (venv, `PYTHONPATH`, `src.main`, dashboard) rather than only narrative steps.
 - If an API key or secret appears in chat, treat it as compromised: revoke/regenerate at the provider and store the replacement only in local `.env`, never in transcripts or git.
+- If `daily_analysis` for a date looks stubbed or missing after runs, refresh narrative with `--analysis-only` for that date; `--skip-claude` no longer overwrites substantive rows (use `--force-daily-analysis` only when intentionally replacing the stored analysis).
 
 ## Learned Workspace Facts
 - The Python bot does not run on Vercel; production is read-only Next.js over Blob. The bot runs locally (or another host), updates `storage/trading_bot.db`, then optionally POSTs to `/api/admin/sync-db` with `DASHBOARD_DB_SYNC_URL` and `DASHBOARD_DB_SYNC_SECRET` matching Vercel `DB_UPLOAD_SECRET`.
@@ -89,7 +93,8 @@ SQLite at `storage/trading_bot.db`. Tables: `portfolio_snapshots`, `positions`, 
 - CLI deploy from `web/`: e.g. `npx vercel deploy --prod`; may create `web/.vercel` (often gitignored). Git-connected projects also deploy on push to the linked branch.
 - Stored `daily_return` uses the latest `portfolio_snapshots.nav` on a date strictly before `as_of` (else initial capital). Missing snapshots between runs make one bar cover a longer calendar window; futures/commodities can still mark through weekends, so Fri→Mon can move a lot in one ratio.
 - `daily_findings` fills only when the model returns it on runs after that field exists; older `daily_analysis` rows stay empty unless backfilled. Brief cross-run hints for the prompt live in SQLite `claude_session_memory`; archival model output may be in `daily_analysis.raw_response`.
-- Interpreting big NAV moves vs open-leg P&L: NAV is cash plus sum of position `market_value` (futures contribute MTM strip, long ETFs full marked value, etc.); realized P&L is already in cash—summed open unrealized on the UI can miss that full picture.
+- Interpreting NAV vs leg tables: NAV is cash plus sum of position `market_value` (futures MTM strip, long ETFs full marked value); realized P&L is already in cash, so summing only open unrealized can miss the full picture. Closing a long ETF credits full sale proceeds to cash—a large move in `NAV − cash` alone is not proof of loss when a big ETF leg was flattened.
+- `portfolio_meta.cash` is updated in the same SQLite transaction as position/trade rows so a close cannot leave cash stale if the process stops between writes.
 - When a same-session `prices` map is passed in, `Position` marking for NAV prefers that feed price over a possibly stale `positions.current_price` if the two could diverge.
 - Stop and take-profit levels on an existing leg update when adding to that leg (merge path); there is no separate stop-only update order in the paper executor.
 - Root `.gitignore` lists `*.tsbuildinfo` so TypeScript incremental build caches (e.g. under `web/`) are not committed.
