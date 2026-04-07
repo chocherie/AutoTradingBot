@@ -40,6 +40,9 @@ python -m src.main --date 2026-04-06 --analysis-only
 # If NAV looks ~1 ETF sale short after an old bug (stale portfolio_meta.cash), replay cash then refresh snapshot:
 PYTHONPATH=. python3 scripts/repair_portfolio_cash.py --apply && PYTHONPATH=. python3 -m src.main --skip-claude --date YYYY-MM-DD
 
+# Push local DB edits to hosted dashboard (Vercel Blob); requires DASHBOARD_DB_SYNC_* in .env
+PYTHONPATH=. python3 -m src.utils.dashboard_sync
+
 # Start web dashboard (from repo root: ../storage/trading_bot.db)
 cd web && npm install && npm run dev
 

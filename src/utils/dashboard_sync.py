@@ -95,3 +95,37 @@ def maybe_sync_dashboard_db() -> None:
         )
     except urllib.error.URLError as e:
         logger.warning("dashboard_sync_url_error", extra={"error": str(e.reason)})
+
+
+def sync_dashboard_db_cli() -> int:
+    """CLI: POST current SQLite snapshot to hosted dashboard (same as end of `src.main`).
+
+    Use after editing ``storage/trading_bot.db`` locally (e.g. analysis copy edits). Requires
+    ``DASHBOARD_DB_SYNC_URL`` and ``DASHBOARD_DB_SYNC_SECRET`` in the environment.
+    """
+    import sys
+
+    from dotenv import load_dotenv
+
+    from src.utils.logging_config import setup_logging
+
+    load_dotenv()
+    setup_logging()
+    url = (os.environ.get("DASHBOARD_DB_SYNC_URL") or "").strip()
+    secret = (os.environ.get("DASHBOARD_DB_SYNC_SECRET") or "").strip()
+    if not url or not secret:
+        logger.error(
+            "dashboard_sync_cli_missing_env",
+            extra={"has_url": bool(url), "has_secret": bool(secret)},
+        )
+        print(
+            "Set DASHBOARD_DB_SYNC_URL and DASHBOARD_DB_SYNC_SECRET (same secret as Vercel DB_UPLOAD_SECRET).",
+            file=sys.stderr,
+        )
+        return 1
+    maybe_sync_dashboard_db()
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(sync_dashboard_db_cli())
