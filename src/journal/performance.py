@@ -34,6 +34,16 @@ def load_snapshot_rows(limit: int = 500) -> List[Tuple[Any, ...]]:
         conn.close()
 
 
+def build_nav_series_for_metrics(as_of: str, nav_final: float) -> List[float]:
+    """NAV points used for Sharpe / max drawdown: prior snapshot dates, then *nav_final* for *as_of*.
+
+    If a row for *as_of* already exists (e.g. stale NAV from an earlier run), it must **not** appear
+    before *nav_final* or the series contains a fake plunge/recovery and **max_drawdown** is wrong.
+    """
+    rows = load_snapshot_rows()
+    return [float(r[1]) for r in rows if str(r[0]) != str(as_of)] + [float(nav_final)]
+
+
 def prior_nav_before(as_of: str) -> Optional[float]:
     """Previous session NAV for daily return: last snapshot strictly before *as_of*, else initial capital.
 
@@ -112,8 +122,7 @@ def next_metrics_for_prompt(
     daily = None
     if prev and prev > 0:
         daily = (current_nav / prev - 1.0) * 100.0
-    rows = load_snapshot_rows()
-    navs = [float(r[1]) for r in rows] + [current_nav]
+    navs = build_nav_series_for_metrics(as_of, current_nav)
     initial = float(load_settings().get("portfolio", {}).get("initial_capital", 1_000_000.0))
     m = compute_metrics_from_nav_series(navs, initial_nav=initial)
     cum_pct = m["cumulative_return"] * 100.0 if m["cumulative_return"] is not None else None

@@ -19,8 +19,8 @@ from src.data.news_sentiment import fetch_news_sentiment
 from src.execution.order import OrderIntent
 from src.execution.simulator import PaperSimulator
 from src.journal.performance import (
+    build_nav_series_for_metrics,
     compute_metrics_from_nav_series,
-    load_snapshot_rows,
     next_metrics_for_prompt,
     prior_nav_before,
 )
@@ -283,8 +283,7 @@ def run_daily(
     prev = prior_nav_before(as_of)
     daily_dec = (nav_final / prev - 1.0) if prev and prev > 0 else None
 
-    hist = load_snapshot_rows()
-    navs = [float(r[1]) for r in hist] + [nav_final]
+    navs = build_nav_series_for_metrics(as_of, nav_final)
     m = compute_metrics_from_nav_series(navs, initial_nav=initial)
 
     portfolio.write_snapshot(
